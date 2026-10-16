@@ -165,9 +165,29 @@ def create_app() -> Flask:
 
     @app.errorhandler(500)
     def _500(_error: Any) -> Any:
+        app.logger.exception("Erro interno")
         return jsonify({"error": "internal_error"}), 500
 
     return app
+
+
+def setup_logging() -> Path:
+    """Log em arquivo rotativo na pasta de dados (visivel mesmo no EXE sem console)."""
+    import logging
+    from logging.handlers import RotatingFileHandler
+
+    log_path = companies.data_directory() / "money26.log"
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    if not any(isinstance(h, RotatingFileHandler) for h in root.handlers):
+        handler = RotatingFileHandler(
+            log_path, maxBytes=1_000_000, backupCount=3, encoding="utf-8"
+        )
+        handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        )
+        root.addHandler(handler)
+    return log_path
 
 
 def _get_free_port() -> int:
@@ -179,7 +199,9 @@ def _get_free_port() -> int:
 def run_webview() -> None:
     import webview  # type: ignore[import-untyped]
 
+    log_path = setup_logging()
     app = create_app()
+    app.logger.info("Money 26 iniciando (log em %s)", log_path)
     port = _get_free_port()
 
     def start_flask() -> None:
