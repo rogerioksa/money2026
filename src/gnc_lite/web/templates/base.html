@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Money 26</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="app">
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">Money 26</div>
+            <nav class="menu" id="menu">
+                <a href="#/register" data-route="register">Registro</a>
+                <a href="#/accounts" data-route="accounts">Contas</a>
+                <a href="#/invoices" data-route="invoices" data-mei="1">Títulos</a>
+                <a href="#/reports" data-route="reports">Relatórios</a>
+                <a href="#/obligations" data-route="obligations" data-mei="1">Obrigações</a>
+                <a href="#/import" data-route="import">Importar</a>
+                <a href="#/companies" data-route="companies" data-mei="1">Empresas</a>
+                <a href="#/settings" data-route="settings">Configurações</a>
+            </nav>
+            <div class="side-foot">
+                <div id="company-label" class="muted"></div>
+            </div>
+        </aside>
+        <div class="main">
+            <header class="topbar">
+                <select id="company-select" title="Empresa ativa"></select>
+                <div class="top-right">
+                    <span id="user-info" class="muted"></span>
+                    <button class="btn btn-ghost" id="btn-logout" hidden>Sair</button>
+                </div>
+            </header>
+            <main id="app" class="content"></main>
+        </div>
+    </div>
+    <div id="toasts" class="toasts"></div>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
