@@ -1,76 +1,103 @@
-from datetime import date
+"""Relatórios: gastos por categoria, patrimônio líquido, fluxo de caixa."""
 
-from gnc_lite.domain.money import Money, money
-from gnc_lite.domain.transaction import Split, Transaction
-from gnc_lite.services import reports
+from __future__ import annotations
 
-
-def _post(ledger, day, description, splits_spec):
-    splits = [
-        Split(ledger.repo.get_account_by_code(code), money(value))
-        for code, value in splits_spec
-    ]
-    ledger.post(
-        Transaction(
-            date=date(2026, 5, day),
-            description=description,
-            splits=splits,
-        )
-    )
+from money99.db.repository import Repository
+from money99.db.session import connect, init_db, make_session
+from money99.domain.account import Account
+from money99.domain.transaction import Transaction
+from money99.services.reports import cash_flow, net_worth, spending_by_category
 
 
-def _sample_book(ledger):
-    ledger.seed_default_chart()
-    _post(ledger, 1, "Aporte do socio", [("1.1", "1000.00"), ("3.1", "-1000.00")])
-    _post(ledger, 2, "Emprestimo recebido", [("1.1", "500.00"), ("2.2", "-500.00")])
-    _post(ledger, 3, "Venda a vista", [("1.1", "300.00"), ("4.1", "-300.00")])
-    _post(ledger, 4, "Pagamento de aluguel", [("5.3", "100.00"), ("1.1", "-100.00")])
+def setup_db(tmp_path):
+    engine = connect(tmp_path / "r.sqlite")
+    init_db(engine)
+    return make_session(engine)
 
 
-def test_trial_balance_fecha(ledger):
-    _sample_book(ledger)
-    report = reports.trial_balance(ledger)
-    total_debit, total_credit = report.footer[1], report.footer[2]
-    assert total_debit == total_credit == money("1800.00")
-    assert total_debit == money("1800.00")
-    labels = [f"{row[0]}" for row in report.rows]
-    assert any(label.startswith("1.1") for label in labels)
-    assert any(label.startswith("5.3") for label in labels)
+def seed(session):
+    repo = Repository(session)
+    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=100000))
+    cats = {c.name: c for c in repo.list_categories()}
+    repo.add_transaction(Transaction(
+        date="2026-03-10", account_id=account.id, amount=-4000,
+        category_id=cats["Alimentação"].id,
+    ))
+    repo.add_transaction(Transaction(
+        date="2026-03-20", account_id=account.id, amount=-2000,
+        category_id=cats["Alimentação"].id,
+    ))
+    repo.add_transaction(Transaction(
+        date="2026-04-05", account_id=account.id, amount=50000,
+        category_id=cats["Salário"].id,
+    ))
+    session.commit()
+    return repo, account, cats
 
 
-def test_dre_resultado(ledger):
-    _sample_book(ledger)
-    report = reports.income_statement(ledger)
-    revenue_row = next(r for r in report.rows if isinstance(r[0], str) and r[0].startswith("4.1"))
-    expense_row = next(r for r in report.rows if isinstance(r[0], str) and r[0].startswith("5.3"))
-    assert revenue_row[1] == money("300.00")
-    assert expense_row[1] == money("100.00")
-    assert report.footer[1] == money("200.00")
+def test_spending_by_category(tmp_path):
+    repo, _, cats = seed(setup_db(tmp_path))
+    result = spending_by_category(repo, "2026-01-01", "2026-12-31")
+    food = next(r for r in result if r["category"] == "Alimentação")
+    assert food["total"] == 6000
+    assert result[0]["category"] == "Alimentação"  # ordenado desc
 
 
-def test_balanco_fecha(ledger):
-    _sample_book(ledger)
-    report = reports.balance_sheet(ledger)
-    total_assets = next(r[1] for r in report.rows if r[0] == "Total do Ativo")
-    liabilities_and_equity = next(
-        r[1] for r in report.rows if r[0] == "Total do Passivo + Patrimonio Liquido"
-    )
-    assert total_assets == money("1700.00")
-    assert total_assets == liabilities_and_equity
+def test_spending_income_kind(tmp_path):
+    repo, _, _ = seed(setup_db(tmp_path))
+    result = spending_by_category(repo, "2026-01-01", "2026-12-31", kind="income")
+    assert result == [{"category_id": result[0]["category_id"], "category": "Salário",
+                       "total": 50000}]
 
 
-def test_fluxo_de_caixa(ledger):
-    _sample_book(ledger)
-    report = reports.cash_flow(ledger)
-    footer = report.footer
-    assert footer[0] == "TOTAIS"
-    assert footer[1] == Money.zero()  # saldo inicial (livro comeca zerado)
-    assert footer[2] == money("1800.00")  # entradas
-    assert footer[3] == money("100.00")  # saidas
-    assert footer[4] == money("1700.00")  # saldo final
+def test_net_worth(tmp_path):
+    repo, account, _ = seed(setup_db(tmp_path))
+    worth = net_worth(repo)
+    # 100000 - 4000 - 2000 + 50000
+    assert worth["total"] == 144000
+    assert worth["accounts"][0]["balance"] == 144000
 
 
-def test_relatorios_com_periodo_filtram_datas(ledger):
-    _sample_book(ledger)
-    report = reports.income_statement(ledger, start=date(2026, 5, 1), end=date(2026, 5, 2))
-    assert report.footer[1] == Money.zero()  # vendas/aluguel ocorreram nos dias 3 e 4
+def test_net_worth_as_of(tmp_path):
+    repo, _, _ = seed(setup_db(tmp_path))
+    worth = net_worth(repo, as_of="2026-03-31")
+    assert worth["total"] == 100000 - 6000  # exclui salário de abril
+
+
+def test_cash_flow(tmp_path):
+    repo, _, _ = seed(setup_db(tmp_path))
+    flow = cash_flow(repo, "2026-01-01", "2026-12-31")
+    assert [f["month"] for f in flow] == ["2026-03", "2026-04"]
+    march = flow[0]
+    assert march["inflow"] == 0 and march["outflow"] == 6000 and march["net"] == -6000
+    april = flow[1]
+    assert april["inflow"] == 50000 and april["outflow"] == 0 and april["net"] == 50000
+
+
+def test_reports_api(client):
+    account = client.post("/api/accounts", json={
+        "name": "Banco", "type": "bank", "initial_balance": 100000,
+    }).get_json()
+    food = next(c for c in client.get("/api/categories?kind=expense").get_json()
+                if c["name"] == "Alimentação")
+    client.post("/api/transactions", json={
+        "date": "2026-06-01", "account_id": account["id"], "amount": -3000,
+        "category_id": food["id"],
+    })
+
+    res = client.get("/api/reports/spending?start=2026-01-01&end=2026-12-31")
+    assert res.status_code == 200
+    assert res.get_json()[0]["total"] == 3000
+
+    res = client.get("/api/reports/net-worth")
+    assert res.get_json()["total"] == 97000
+
+    res = client.get("/api/reports/cash-flow?start=2026-01-01&end=2026-12-31")
+    assert res.get_json()[0]["outflow"] == 3000
+
+
+def test_reports_api_validation(client):
+    assert client.get("/api/reports/spending").status_code == 400
+    assert client.get("/api/reports/cash-flow").status_code == 400
+    assert client.get("/api/reports/spending?start=2026-01-01&end=2026-12-31&kind=x"
+                      ).status_code == 400

@@ -1,37 +1,58 @@
-from decimal import Decimal
+"""Testes de formatação/parsing de dinheiro (centavos, pt-BR)."""
+
+from __future__ import annotations
 
 import pytest
 
-from gnc_lite.domain.errors import CurrencyMismatchError
-from gnc_lite.domain.money import money
+from money99.domain.money import format_brl, parse_brl, parse_iso_date
 
 
-def test_from_decimal_arredonda_para_centavos():
-    assert money("10.005").minor_units == 1000
-    assert money("10.015").minor_units == 1002  # half-even
-    assert money(Decimal("0.10")).minor_units == 10
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("0,00", 0),
+        ("10,00", 1000),
+        ("1.234,56", 123456),
+        ("-R$ 1.234,56", -123456),
+        ("R$ 0,05", 5),
+        ("1000", 100000),
+    ],
+)
+def test_parse_brl(text, expected):
+    assert parse_brl(text) == expected
 
 
-def test_amount_round_trip():
-    assert money("10.50").amount == Decimal("10.50")
+@pytest.mark.parametrize("text", ["", "abc", "1,2,3"])
+def test_parse_brl_invalid(text):
+    with pytest.raises(ValueError):
+        parse_brl(text)
 
 
-def test_soma_e_subtracao():
-    assert money("10.00") + money("2.50") == money("12.50")
-    assert money("10.00") - money("2.50") == money("7.50")
-    assert -money("2.50") == money("-2.50")
+@pytest.mark.parametrize(
+    ("cents", "expected"),
+    [
+        (0, "0,00"),
+        (5, "0,05"),
+        (1000, "10,00"),
+        (123456, "1.234,56"),
+        (-123456, "-1.234,56"),
+        (100000000, "1.000.000,00"),
+    ],
+)
+def test_format_brl(cents, expected):
+    assert format_brl(cents) == expected
 
 
-def test_zeramento():
-    total = money("100.00") - money("100.00")
-    assert total.is_zero
-    assert not total
+def test_format_brl_symbol():
+    assert format_brl(123456, with_symbol=True) == "R$ 1.234,56"
+    assert format_brl(-123456, with_symbol=True) == "-R$ 1.234,56"
 
 
-def test_moedas_incompativeis_levantam_erro():
-    with pytest.raises(CurrencyMismatchError):
-        money("1.00", "BRL") + money("1.00", "USD")
+def test_parse_iso_date():
+    assert parse_iso_date("2026-10-19") == (2026, 10, 19)
 
 
-def test_repr_str():
-    assert str(money("10.50")) == "BRL 10.50"
+@pytest.mark.parametrize("bad", ["19/10/2026", "2026-13-01", "2026-10", "abc"])
+def test_parse_iso_date_invalid(bad):
+    with pytest.raises(ValueError):
+        parse_iso_date(bad)

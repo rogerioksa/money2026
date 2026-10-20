@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "gnc-lite"
-version = "1.0.0"
-description = "Contabilidade de partidas dobradas simples para pequenos negocios"
+name = "money99"
+version = "0.1.0"
+description = "Gerenciador financeiro pessoal estilo Money 99 (partidas dobradas simples)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }
@@ -13,18 +13,17 @@ dependencies = [
     "SQLAlchemy>=2.0",
     "flask>=3.0",
     "pywebview>=4.0",
-    "reportlab>=4.0",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5", "alembic>=1.13"]
+dev = ["pytest>=8", "ruff>=0.5"]
 build = ["pyinstaller>=6.0"]
 
 [project.scripts]
-gnc-lite = "gnc_lite.main:main"
+money99 = "money99.main:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/gnc_lite"]
+packages = ["src/money99"]
 
 [tool.ruff]
 line-length = 100

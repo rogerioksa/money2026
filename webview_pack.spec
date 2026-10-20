@@ -1,56 +1,33 @@
 # -*- mode: python ; coding: utf-8 -*-
-import os
-import sys
-from pathlib import Path
-
-block_cipher = None
-
-project_root = Path(sys.argv[0]).parent if False else Path('.')
-src = project_root / 'src' / 'gnc_lite'
+# PyInstaller spec do Money 99 (arquivo unico, janela, sem console).
 
 a = Analysis(
-    ['src/gnc_lite/__main_webview__.py'],
-    pathex=[str(project_root / 'src')],
+    ["src\\money99\\__main_webview__.py"],
+    pathex=["src"],
     binaries=[],
     datas=[
-        (str(src / 'web' / 'templates'), 'gnc_lite/web/templates'),
-        (str(src / 'web' / 'static'), 'gnc_lite/web/static'),
+        ("src\\money99\\web\\templates", "money99\\web\\templates"),
+        ("src\\money99\\web\\static", "money99\\web\\static"),
     ],
-    hiddenimports=[
-        'flask',
-        'webview',
-        'sqlalchemy',
-        'reportlab',
-    ],
+    hiddenimports=["webview", "flask", "sqlalchemy", "sqlalchemy.dialects.sqlite"],
     hookspath=[],
-    hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
+    excludes=["tkinter", "pytest"],
     noarchive=False,
 )
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
+
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
-    name='Money26',
+    name="Money99",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    upx_exclude=[],
-    runtime_tmpdir=None,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=None,
 )

@@ -1,69 +1,45 @@
-# 00 — Visão geral do Money 26
+# 00 — Visão geral
 
-> Contabilidade de **partidas dobradas** em Python para pequenos negócios e MEI,
-> com interface web local (Flask + pywebview) empacotada em `.exe` único.
-
-## Produto em 30 segundos
+Money 99 é um gerenciador financeiro pessoal em Python, inspirado no Microsoft
+Money 99: contas, transações com categorias/transferências/splits, orçamentos
+mensais, relatórios e importação de extratos QIF/OFX.
 
 | Item | Valor |
 |---|---|
-| Nome do produto | **Money 26** |
-| Pacote Python (interno) | `gnc_lite` (mantido por compatibilidade) |
+| Pacote Python | `money99` |
 | Interface | SPA em `web/` servida por Flask, aberta em janela pywebview |
-| Banco | SQLite por empresa (`DB/*.sqlite`), via SQLAlchemy 2.0 |
-| Dinheiro | Inteiros (centavos) — nunca `float` (`domain/money.py`) |
-| Idioma/moeda | pt-BR, BRL |
-| Executável | `dist/Money26.exe` (PyInstaller, `webview_pack.spec`) |
-| Python | 3.11+ (desenvolvimento em 3.12, `.venv`) |
+| Banco | SQLite (`data/money99.sqlite`), via SQLAlchemy 2.0 |
+| Dinheiro | Inteiro em centavos — nunca `float` |
+| Idioma/moeda | pt-BR / BRL |
+| Executável | `dist/Money99.exe` (PyInstaller, `webview_pack.spec`) |
+| Python | 3.11+ |
 
-## Perfis de uso
-
-- **Uso pessoal** (`Profile.PERSONAL`): plano de contas simplificado, sem telas de empresa.
-- **MEI** (`Profile.MEI`): plano empresarial completo + Títulos, Empresas, Obrigações
-  (DAS/RMR/DASN-SIMEI), relatórios MEI e consulta de CNPJ.
-
-Regra de ouro da UX: **telas de empresa (Empresas, Títulos, Obrigações) só aparecem
-no perfil MEI**. Relatórios MEI idem. Implementado em `web/static/js/app.js`
-(`MEI_ROUTES`, `data-mei`, `syncProfile()`).
-
-## Estrutura do repositório
+## Estrutura
 
 ```
-├── src/gnc_lite/
-│   ├── main.py               # entrypoint `gnc-lite` → run_webview()
-│   ├── __main_webview__.py   # entrypoint do PyInstaller → run_webview()
-│   ├── app_webview.py        # Flask + launcher pywebview + WebSession
-│   ├── data_path.py          # exports/ + abrir-no-programa-padrão
-│   ├── api/                  # blueprints REST (10 arquivos)
-│   ├── db/                   # chart, models, repository, session
-│   ├── domain/               # regras puras (account, money, transaction, ...)
-│   ├── services/             # ledger, billing, reports, mei, importer, ...
-│   └── web/                  # templates/base.html + static/{css,js}
-├── tests/                    # 14 arquivos de teste (ver 06-build-release.md)
-├── docs/                     # esta documentação
-├── webview_pack.spec         # build do Money26.exe
-├── pyproject.toml            # deps: SQLAlchemy, flask, pywebview, reportlab
-└── dist/Money26.exe          # artefato gerado (não versionar conteúdo)
+src/money99/
+  main.py / __main_webview__.py   # entrypoints (CLI e PyInstaller)
+  app.py                          # create_app() + launcher pywebview
+  data_path.py                    # pasta de dados gravável
+  domain/                         # regras puras (money, account, transaction, budget)
+  db/                             # models, repository, session (_migrate + seed)
+  services/                       # budget, reports, importer, reconcile
+  api/                            # blueprints REST
+  web/                            # templates/base.html + static/{css,js}
+tests/                            # pytest
+docs/                             # esta documentação
+webview_pack.spec                 # build do Money99.exe
 ```
 
-## Onde ficam os dados (runtime)
+## Telas (SPA, hash-routes)
 
-- Bancos: `<pasta do exe>/DB/*.sqlite` (dev: `<cwd>/DB/`); fallback
-  `%APPDATA%/GnuCashLite/` se `DB/` não for gravável. Migração automática do legado.
-- Registro de empresas: `DB/empresas.json`.
-- Config (perfil + MEI): `%APPDATA%/GnuCashLite/config.json` (sempre global, não por empresa).
-- Sidecars por empresa: `<banco>.obrigacoes.json` (DAS/RMR/DASN marcados),
-  `<banco>.cnpj.json` (cache Minha Receita).
-- Exportações: `DB/exports/` (CSV DAS, ficha CNPJ JSON).
+- `#/contas` — CRUD de contas com saldo.
+- `#/extrato` — transações com filtros, lançamento rápido e conciliação.
+- `#/orcamento` — planejado × realizado por categoria/mês.
+- `#/relatorios` — gastos por categoria, patrimônio líquido, fluxo de caixa (canvas).
+- `#/importar` — preview e importação de extrato QIF/OFX.
 
-## Documentos seguintes
+## Dados em runtime
 
-- `01-architecture.md` — camadas, sessão web, ciclo de request.
-- `02-backend-api.md` — referência completa dos endpoints.
-- `03-database.md` — modelos, migrações, planos de contas.
-- `04-domain-services.md` — regras contábeis e serviços.
-- `05-frontend.md` — SPA, telas, convenções JS/CSS.
-- `06-build-release.md` — venv, testes, lint, build, smoke.
-- `07-operations.md` — dados em produção, troubleshooting, FAQ.
-- `08-ai-agent-guide.md` — como um agente IA deve trabalhar aqui.
-- `09-decisions.md` — decisões arquiteturais registradas (ADRs).
+- Banco: `data/money99.sqlite` (ao lado do cwd/exe; fallback `%APPDATA%/Money99`).
+- Exportações: `data/exports/`.

@@ -1,129 +1,140 @@
-from datetime import date
+"""Banco: init, seed, migração legada, repository (CRUD + saldo + filtros)."""
 
-from gnc_lite.domain.account import AccountType
-from gnc_lite.domain.money import money
-from gnc_lite.domain.transaction import Split, Transaction
+from __future__ import annotations
 
+from sqlalchemy import text
 
-def test_seed_cria_plano_de_contas_com_hierarquia(ledger):
-    accounts = ledger.seed_default_chart()
-    assert len(accounts) == 24
-
-    caixa = ledger.repo.get_account_by_code("1.1")
-    assert caixa is not None
-    assert caixa.type is AccountType.ASSET
-    assert caixa.parent is not None
-    assert caixa.parent.code == "1"
-
-    conta = ledger.repo.get_account_by_code("1.2.1")
-    assert conta is not None
-    assert conta.parent is not None
-    assert conta.parent.code == "1.2"
-    assert conta.parent.parent is not None
-    assert conta.parent.parent.code == "1"
+from money99.db.repository import Repository
+from money99.db.session import connect, init_db, make_session
+from money99.domain.account import Account
+from money99.domain.transaction import Split, Transaction
 
 
-def test_list_accounts_liga_pais_e_filhos(ledger):
-    ledger.seed_default_chart()
-    accounts = ledger.list_accounts()
-    ativo = next(a for a in accounts if a.code == "1")
-    child_codes = {c.code for c in ativo.children}
-    assert {"1.1", "1.2", "1.3"} <= child_codes
-
-
-def test_persistir_e_recuperar_conta(ledger):
-    account = ledger.create_account("9.1", "Conta Teste", AccountType.ASSET)
-    assert account.id is not None
-    found = ledger.repo.get_account(account.id)
-    assert found is not None
-    assert found.code == "9.1"
-    assert found.name == "Conta Teste"
-
-
-def test_lancamento_balanceado_persiste_e_calcula_saldo(ledger):
-    ledger.seed_default_chart()
-    caixa = ledger.repo.get_account_by_code("1.1")
-    vendas = ledger.repo.get_account_by_code("4.1")
-
-    tx = Transaction(
-        date=date(2026, 1, 10),
-        description="Venda a vista",
-        splits=[Split(caixa, money("150.00")), Split(vendas, money("-150.00"))],
-    )
-    ledger.post(tx)
-    assert tx.id is not None
-
-    assert ledger.raw_balance(caixa) == money("150.00")
-    assert ledger.balance(vendas) == money("150.00")
-
-
-def test_saldo_de_conta_agrupadora_soma_filhos(ledger):
-    ledger.seed_default_chart()
-    caixa = ledger.repo.get_account_by_code("1.1")
-    banco = ledger.repo.get_account_by_code("1.2.1")
-    ativo = ledger.repo.get_account_by_code("1")
-    receita = ledger.repo.get_account_by_code("4.1")
-
-    ledger.post(
-        Transaction(
-            date=date(2026, 2, 1),
-            description="Aporte em dinheiro",
-            splits=[Split(caixa, money("100.00")), Split(receita, money("-100.00"))],
-        )
-    )
-    ledger.post(
-        Transaction(
-            date=date(2026, 2, 2),
-            description="Deposito em banco",
-            splits=[Split(banco, money("60.00")), Split(receita, money("-60.00"))],
-        )
-    )
-
-    assert ledger.raw_balance(ativo) == money("160.00")
-
-
-def test_list_transactions_recupera_splits(ledger):
-    ledger.seed_default_chart()
-    caixa = ledger.repo.get_account_by_code("1.1")
-    vendas = ledger.repo.get_account_by_code("4.1")
-    ledger.post(
-        Transaction(
-            date=date(2026, 3, 1),
-            description="Venda",
-            splits=[Split(caixa, money("25.00")), Split(vendas, money("-25.00"))],
-        )
-    )
-    txs = ledger.transactions()
-    assert len(txs) == 1
-    assert txs[0].balance().is_zero
-    assert {s.account.code for s in txs[0].splits} == {"1.1", "4.1"}
-
-
-def test_migrate_legacy_accounts_without_kind(tmp_path):
-    """Bancos antigos ganham kind/limite com padroes sem perder dados."""
-    import sqlite3
-
-    from gnc_lite.db.repository import Repository
-    from gnc_lite.db.session import connect, init_db, make_session
-
-    target = tmp_path / "antigo.sqlite"
-    connection = sqlite3.connect(target)
-    connection.execute(
-        "CREATE TABLE accounts (id INTEGER PRIMARY KEY, code VARCHAR(32),"
-        " name VARCHAR(128), type VARCHAR(16), currency VARCHAR(3),"
-        " description VARCHAR(255), placeholder BOOLEAN, parent_id INTEGER)"
-    )
-    connection.execute(
-        "INSERT INTO accounts (code, name, type) VALUES ('1.1', 'Caixa', 'ativo')"
-    )
-    connection.commit()
-    connection.close()
-
-    engine = connect(target)
+def setup_db(tmp_path):
+    engine = connect(tmp_path / "test.sqlite")
     init_db(engine)
-    session = make_session(engine)()
-    account = Repository(session).get_account_by_code("1.1")
-    assert account is not None
-    assert account.kind == "normal"
-    assert account.credit_limit_minor == 0
-    session.close()
+    return engine, make_session(engine)
+
+
+def test_init_seeds_categories(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    names = {c.name for c in repo.list_categories()}
+    assert "Alimentação" in names
+    assert "Salário" in names
+    assert len(repo.list_categories()) == 12
+    assert {c.kind for c in repo.list_categories()} == {"income", "expense"}
+
+
+def test_account_crud_and_balance(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=100000))
+    category = repo.list_categories(kind="expense")[0]
+
+    txn = repo.add_transaction(
+        Transaction(date="2026-10-01", account_id=account.id, amount=-2500,
+                    description="Mercado", category_id=category.id)
+    )
+    assert repo.account_balance(account.id) == 100000 - 2500
+
+    repo.delete_transaction(txn.id)
+    assert repo.account_balance(account.id) == 100000
+
+
+def test_transfer_moves_balance(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    checking = repo.add_account(Account(name="Conta", type="bank", initial_balance=50000))
+    savings = repo.add_account(Account(name="Poupança", type="bank", initial_balance=0))
+
+    repo.add_transaction(
+        Transaction(date="2026-10-02", account_id=checking.id, amount=-20000,
+                    transfer_account_id=savings.id)
+    )
+    assert repo.account_balance(checking.id) == 30000
+    assert repo.account_balance(savings.id) == 20000
+
+
+def test_delete_account_with_transactions_rejected(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    account = repo.add_account(Account(name="Banco", type="bank"))
+    category = repo.list_categories(kind="expense")[0]
+    repo.add_transaction(
+        Transaction(date="2026-10-01", account_id=account.id, amount=-100, category_id=category.id)
+    )
+    try:
+        repo.delete_account(account.id)
+        raise AssertionError("deveria ter levantado ValueError")
+    except ValueError:
+        pass
+
+
+def test_splits_and_category_filter(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    cats = {c.name: c for c in repo.list_categories(kind="expense")}
+    food = cats["Alimentação"]
+    transport = cats["Transporte"]
+
+    repo.add_transaction(
+        Transaction(date="2026-10-05", account_id=account.id, amount=-4500,
+                    description="Feira+Uber",
+                    splits=[Split(category_id=food.id, amount=-3000),
+                            Split(category_id=transport.id, amount=-1500)])
+    )
+    by_food = repo.list_transactions(category_id=food.id)
+    assert len(by_food) == 1
+    by_transport = repo.list_transactions(category_id=transport.id)
+    assert len(by_transport) == 1
+    assert len(repo.list_transactions(category_id=cats["Lazer"].id)) == 0
+
+
+def test_date_filters(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    account = repo.add_account(Account(name="Banco", type="bank"))
+    cat = repo.list_categories(kind="expense")[0]
+    for day in ("2026-09-30", "2026-10-01", "2026-11-01"):
+        repo.add_transaction(
+            Transaction(date=day, account_id=account.id, amount=-100, category_id=cat.id)
+        )
+    oct_only = repo.list_transactions(start="2026-10-01", end="2026-10-31")
+    assert [t.date for t in oct_only] == ["2026-10-01"]
+
+
+def test_budget_upsert(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    cat = repo.list_categories(kind="expense")[0]
+    repo.set_budget(2026, 10, cat.id, 500000)
+    repo.set_budget(2026, 10, cat.id, 550000)
+    session.commit()
+    rows = repo.list_budget(2026, 10)
+    assert len(rows) == 1
+    assert rows[0].planned == 550000
+
+
+def test_legacy_migration_adds_missing_column(tmp_path):
+    """Banco antigo (sem coluna 'reconciled') é migrado sem perder dados."""
+    db_file = tmp_path / "legacy.sqlite"
+    engine = connect(db_file)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE transactions ("
+            "id INTEGER PRIMARY KEY, date VARCHAR(10), description VARCHAR(240),"
+            "account_id INTEGER, amount INTEGER, category_id INTEGER,"
+            "transfer_account_id INTEGER, notes TEXT)"
+        ))
+        conn.execute(text(
+            "INSERT INTO transactions (date, description, account_id, amount,"
+            " category_id, notes) VALUES ('2026-01-15', 'antiga', 1, -999, 1, '')"
+        ))
+    init_db(engine)
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(transactions)"))}
+        assert "reconciled" in cols
+        row = conn.execute(text("SELECT description, amount FROM transactions")).fetchone()
+        assert row == ("antiga", -999)

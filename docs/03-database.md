@@ -1,57 +1,39 @@
 # 03 — Banco de dados
 
-SQLite + SQLAlchemy 2.0. Um arquivo por empresa (`DB/*.sqlite`).
-Código em `src/gnc_lite/db/`: `session.py`, `models.py`, `repository.py`, `chart.py`.
+SQLite por usuário (`data/money99.sqlite`), SQLAlchemy 2.0 (`db/models.py`).
+`init_db()` roda `Base.metadata.create_all` + `_migrate` + seed de categorias.
 
-## Conexão e migrações (`session.py`)
+## Tabelas
 
-- `connect(path)` → engine (`sqlite:///...` ou `sqlite://` p/ `:memory:` nos testes).
-- `init_db(engine)` → `create_all` + `_migrate()`: migração leve via
-  `PRAGMA table_info(accounts)` + `ALTER TABLE ADD COLUMN` com backfill
-  (`kind='normal'`, `credit_limit_minor=0`). **Padrão para evoluir schema sem
-  Alembic**: adicionar coluna no model + bloco em `_migrate`. Nunca deletar o
-  arquivo do usuário (o reset antigo fazia isso — removido de propósito).
-- `make_session(engine)` → `sessionmaker(expire_on_commit=False)`.
+- **accounts** — `id, name, type, initial_balance, active`.
+- **categories** — `id, name, kind (income|expense), parent_id`.
+- **transactions** — `id, date (ISO), description, account_id, amount (centavos),
+  category_id, transfer_account_id, notes, reconciled`.
+- **splits** — `id, transaction_id, category_id, amount`.
+- **budgets** — `id, year, month, category_id, planned`.
 
-## Tabelas (`models.py`)
+## Sinal e saldo
 
-| Tabela | Colunas-chave | Notas |
-|---|---|---|
-| `accounts` | id, code (único), name, type, currency, description, placeholder, parent_id (self-FK), **kind**, **credit_limit_minor** | `kind`: `normal\|cartao\|cheque` |
-| `transactions` | id, date, description, currency, number, payee, memo | splits com cascade delete-orphan |
-| `splits` | id, transaction_id, account_id (index), minor_units, currency, memo | valor com sinal (débito +, crédito −) |
-| `parties` | id, name, type (`cliente\|fornecedor`), document, email, phone, notes | |
-| `invoices` | id, party_id?, kind (`a_receber\|a_pagar`), minor_units, currency, issue_date, due_date, description, account_id, transaction_id? | |
-| `invoice_settlements` | id, invoice_id, date, minor_units, currency, transaction_id? | |
-| `users` | id, username (único), display_name, password_hash, role, active | senhas via `security.py` (hash+verify) |
+`amount` é assinado do ponto de vista de `account_id`. O saldo de uma conta é:
 
-`users` **nunca** é apagada pelo reset (`services/companies.py::reset_company_db`
-deleta settlements→invoices→splits→transactions→parties→accounts e resemeia o plano).
+```
+initial_balance
+  + SUM(amount WHERE account_id = conta)
+  + SUM(-amount WHERE transfer_account_id = conta)
+```
 
-## Repository (`repository.py`)
+## Migração
 
-Único acesso ao banco; domínio nunca vê ORM. Principais métodos:
+`db/session._migrate()` compara as colunas esperadas com as existentes via
+`inspect()` e faz `ALTER TABLE ... ADD COLUMN` das que faltarem — nunca apaga
+dados. Coberto por `tests/test_db.py::test_legacy_migration_adds_missing_column`.
 
-- Contas: `add_account`, `get_account`, `get_account_by_code`, `list_accounts`
-  (reconstroi `parent/children`), `account_count`, `update_account`, `has_postings`.
-- Lançamentos: `add_transaction` (valida), `get_transaction`, `list_transactions`
-  (ordem data,id).
-- Somatórios eficientes: `sum_minor_units`, `sum_minor_units_between`,
-  `debit_credit_between`, `account_currency`.
-- Partes/títulos: `add/get/list_parties`, `add_invoice`, `add_settlement`,
-  `get_invoice`, `list_invoices`.
-- Usuários: `add/update/get/get_by_username/list/count_users`.
+## Seed
 
-Conversões: `_to_domain_*` (ORM→domínio; conta resolve `kind` com fallback
-`"normal"`). `_account_model_for` resolve conta para persistir splits.
+`DEFAULT_CATEGORIES` (12 categorias de receita/despesa) é inserido apenas se a
+tabela `categories` estiver vazia.
 
-## Planos de contas (`chart.py`)
+## Regra do .gitignore
 
-- `CHART_BUSINESS = "empresa"` (24 contas: 1.1 Caixa … 5.5 Impostos) e
-  `CHART_PERSONAL = "pessoal"` (doméstico). `chart_for_profile()` em `config.py`
-  (MEI→empresa, senão pessoal).
-- Hierarquia derivada do código (`parent_code`: `1.2.1`→`1.2`); seed ordena pai→filho.
-- Contas `placeholder=True` são grupos (não recebem lançamentos — API e UI barram).
-- Tipos: `ativo|passivo|patrimonio|receita|despesa`. Convenção de sinal: **débito
-  positivo, crédito negativo** no bruto (`raw`); `natural_balance` aplica o sinal
-  natural. Cartão = passivo, cheque especial = ativo (imposto por `ACCOUNT_KIND_TYPE`).
+O diretório de dados chama-se `data/`. **Nunca** colocar `DB/` no `.gitignore`:
+no Windows (case-insensitive) casaria com o pacote de código `src/money99/db/`.

@@ -6,63 +6,37 @@
 web/ (SPA: base.html + style.css + app.js)
   │  HTTP JSON 127.0.0.1
   ▼
-api/ (blueprints Flask) ── usa ──► services/ (ledger, billing, reports, mei, ...)
-  │                                    │
-  │                                    ▼
-  │                              db/repository.py ──► db/models.py (SQLite)
+api/ (blueprints Flask) ──► services/ (budget, reports, importer, reconcile)
+  │                              │
+  │                              ▼
+  │                        db/repository.py ──► db/models.py (SQLite)
   ▼
-app_webview.py (WebSession por empresa + usuário logado)
+app.py (create_app() + sessão por request + launcher pywebview)
 ```
 
-- `domain/` é puro (sem SQLAlchemy, sem Flask): `Account`, `Money`, `Transaction`,
-  `Split`, `Invoice`, `Party`, `User`, `Role`. Qualquer agente pode confiar que
-  regra contábil vive aqui ou em `services/`, nunca no frontend.
-- `services/` orquestra domínio + repositório. Ex.: `BillingService` emite títulos
-  **e** posta os lançamentos correspondentes (dupla entrada garantida no serviço).
-- `api/` é fina: parseia payload, chama serviço, serializa, commita (`web.dbsession.commit()`).
-  **Todo endpoint que escreve deve commitar; em erro, `rollback()`.**
+- `domain/` é puro (sem SQLAlchemy/Flask): `Account`, `Transaction`, `Split`,
+  `BudgetEntry`, helpers de `Money`.
+- `services/` orquestra domínio + repositório.
+- `api/` é fina: parseia payload, chama serviço/repositório, serializa.
 
-## Runtime: Flask + pywebview (`app_webview.py`)
+## Ciclo de request
 
-1. `run_webview()` escolhe porta livre em `127.0.0.1`, sobe o Flask em thread daemon
-   (`threaded=False`), espera a porta responder e abre `webview.create_window("Money 26", url)`.
-2. `create_app()` configura `static_folder`/`template_folder` via `_resource_base()`
-   (usa `sys._MEIPASS` quando congelado — é assim que o EXE encontra `web/`).
-3. `GET /` serve `base.html`; todo o resto é JSON em `/api/*`.
+1. `create_app()` cria o engine SQLite e roda `init_db` (create_all + `_migrate` + seed).
+2. Cada request pega uma sessão via `g` (`app.extensions["get_repo"]`).
+3. `teardown_appcontext` faz `commit()` no sucesso e `rollback()` em erro, e fecha a sessão.
 
-## WebSession e autenticação
+## Launcher pywebview
 
-```python
-@dataclass
-class WebSession:
-    company: Company      # empresa ativa
-    ledger: Ledger        # fachada contábil (repo dentro)
-    dbsession: Session    # sessão SQLAlchemy aberta
-    user: User | None     # logado (None = anônimo)
-```
+`run_webview()` escolhe porta livre em `127.0.0.1`, sobe o Flask em thread daemon
+e abre `webview.create_window("Money 99", url)`. Recursos `templates/` e `static/`
+são resolvidos via `_resource_base()` (usa `sys._MEIPASS` quando congelado).
 
-- `app.config` guarda `COMPANY_ID`, `SESSION`, `USER_ID`.
-- `current_session()` reabre o livro ao trocar de empresa e **reidrata o usuário**
-  via `USER_ID` (`_resolve_user`). Comportamento testado em `test_web_api.py`.
-- `POST /api/companies/select` só limpa `SESSION`/`USER_ID` **quando a empresa muda**
-  (mesma empresa preserva o login — importante para o F5 da SPA).
-- `POST /api/auth/login` autentica via `AuthService` e anexa `web.user`
-  (não zera a sessão). `GET /api/auth/me` reflete o estado. `POST /logout` limpa.
-- `WebSession.can_write` = `True` sem login (bootstrap/testes) ou `user.role.can_write`;
-  `is_admin` análogo. Endpoints de escrita exigem `can_write`; admin exige
-  `user.role.is_admin` (usuários, reset).
+## Invariantes
 
-## Invariantes que um agente deve preservar
-
-1. **Partidas dobradas**: `Transaction.validate()` exige soma zero; nunca persistir
-   lançamento desbalanceado.
-2. **Dinheiro em centavos** (`Money.minor_units: int`); parsing pt-BR só nas bordas
-   (API recebe `minor_units`; frontend converte com `parseBRL`/`fmtMinor`).
-3. **Datas na API em ISO** (`AAAA-MM-DD`); exibição BR (`DD/MM/AAAA`) só no frontend
-   (`fmtDate`).
-4. **`display_name`** é o campo de exibição do usuário (não existe `display`).
-5. **`Account.parent`** é objeto (não `parent_id`); acesso via `ledger.repo.*`.
-6. **Sem Flet/Qt**: o projeto é 100% pywebview. Não reintroduzir `import flet`,
-   `PySide6` ou `flet_app/`/`ui/` (removidos). PDF usa **reportlab** (`services/pdf.py`).
-7. **Compatibilidade de dados**: `APP_NAME = "GnuCashLite"` e pastas de dados NÃO mudam
-   (renomear perde bancos existentes). Marca visível é "Money 26"; pacote é `gnc_lite`.
+1. **Partidas dobradas simplificadas**: `Transaction.validate()` — valor ≠ 0;
+   transferência sem categoria/splits; splits somam o valor.
+2. **Dinheiro em centavos** (int); parsing pt-BR só nas bordas.
+3. **Datas ISO na API**; exibição BR só no frontend.
+4. **Sinal**: `amount` assinado do ponto de vista de `account_id`; a conta destino
+   de uma transferência recebe `-amount`.
+5. Filtro de fim de mês usa a string `AAAA-MM-31`.

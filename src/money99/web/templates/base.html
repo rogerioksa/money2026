@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Money 99</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Money 99</h1>
+    <nav id="main-nav">
+      <a href="#/contas">Contas</a>
+      <a href="#/extrato">Extrato</a>
+      <a href="#/orcamento">Orçamento</a>
+      <a href="#/relatorios">Relatórios</a>
+      <a href="#/importar">Importar</a>
+    </nav>
+  </header>
+  <main id="app">
+    <p class="placeholder">Carregando…</p>
+  </main>
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

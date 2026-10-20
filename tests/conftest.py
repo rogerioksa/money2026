@@ -1,24 +1,18 @@
+from __future__ import annotations
+
 import pytest
 
-from gnc_lite.db.repository import Repository
-from gnc_lite.db.session import connect, init_db, make_session
-from gnc_lite.services.ledger import Ledger
+
+@pytest.fixture()
+def app(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    from money99.app import create_app
+
+    application = create_app()
+    application.config["TESTING"] = True
+    return application
 
 
-@pytest.fixture
-def session():
-    engine = connect(":memory:")
-    init_db(engine)
-    factory = make_session(engine)
-    with factory() as db_session:
-        yield db_session
-
-
-@pytest.fixture
-def repo(session):
-    return Repository(session)
-
-
-@pytest.fixture
-def ledger(repo):
-    return Ledger(repo)
+@pytest.fixture()
+def client(app):
+    return app.test_client()
