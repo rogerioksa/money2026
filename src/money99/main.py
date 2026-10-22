@@ -1,4 +1,4 @@
-"""Ponto de entrada do Money 99 (janela pywebview)."""
+"""Ponto de entrada do Money 2026 (janela pywebview)."""
 
 from __future__ import annotations
 

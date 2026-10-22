@@ -22,6 +22,7 @@ def _serialize(txn: Transaction) -> dict:
         "splits": [{"category_id": s.category_id, "amount": s.amount} for s in txn.splits],
         "notes": txn.notes,
         "reconciled": txn.reconciled,
+        "doc_issued": txn.doc_issued,
     }
 
 
@@ -39,6 +40,7 @@ def _parse_payload(payload: dict) -> Transaction:
         ],
         notes=str(payload.get("notes", "")),
         reconciled=bool(payload.get("reconciled", False)),
+        doc_issued=bool(payload.get("doc_issued", False)),
     )
 
 

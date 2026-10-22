@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Money 2026 — Acesso</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-body">
+  <main class="login-card">
+    <h1>Money 2026</h1>
+    <p id="login-hint" class="placeholder">Carregando…</p>
+    <form id="login-form" class="login-form" hidden>
+      <label>Usuário <input name="username" autocomplete="username" required maxlength="120"></label>
+      <label>Senha <input name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit" id="login-submit">Entrar</button>
+    </form>
+    <p id="login-error" class="error" hidden></p>
+  </main>
+  <script>
+    "use strict";
+    const form = document.getElementById("login-form");
+    const hint = document.getElementById("login-hint");
+    const errEl = document.getElementById("login-error");
+    const submit = document.getElementById("login-submit");
+
+    async function api(url, options = {}) {
+      const res = await fetch(url, {
+        headers: { "Content-Type": "application/json" },
+        ...options,
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+      return body;
+    }
+
+    (async function init() {
+      try {
+        const status = await api("/api/auth/status");
+        if (status.authenticated) { window.location.href = "/"; return; }
+        form.hidden = false;
+        if (status.has_user) {
+          hint.textContent = "Entre com seu usuário e senha.";
+        } else {
+          hint.textContent = "Primeiro acesso: defina usuário e senha.";
+          submit.textContent = "Criar acesso";
+        }
+      } catch (err) {
+        hint.textContent = "Erro ao iniciar.";
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      }
+    })();
+
+    form.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      errEl.hidden = true;
+      const status = await api("/api/auth/status").catch(() => ({ has_user: true }));
+      const endpoint = status.has_user ? "/api/auth/login" : "/api/auth/setup";
+      try {
+        await api(endpoint, {
+          method: "POST",
+          body: JSON.stringify({
+            username: form.username.value,
+            password: form.password.value,
+          }),
+        });
+        window.location.href = "/";
+      } catch (err) {
+        errEl.textContent = err.message;
+        errEl.hidden = false;
+      }
+    });
+  </script>
+</body>
+</html>

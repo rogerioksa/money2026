@@ -17,6 +17,7 @@ def _serialize(repo, account: Account) -> dict:
         "type": account.type.value,
         "initial_balance": account.initial_balance,
         "active": account.active,
+        "credit_limit": account.credit_limit,
         "balance": repo.account_balance(account.id),
     }
 
@@ -38,6 +39,7 @@ def create_account():
             type=payload.get("type", "bank"),
             initial_balance=int(payload.get("initial_balance", 0)),
             active=bool(payload.get("active", True)),
+            credit_limit=int(payload.get("credit_limit", 0)),
         )
         created = repo.add_account(account)
     except (ValueError, TypeError) as exc:
@@ -66,6 +68,7 @@ def update_account(account_id: int):
             type=payload.get("type", "bank"),
             initial_balance=int(payload.get("initial_balance", 0)),
             active=bool(payload.get("active", True)),
+            credit_limit=int(payload.get("credit_limit", 0)),
         )
         updated = repo.update_account(account)
     except LookupError as exc:

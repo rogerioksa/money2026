@@ -29,6 +29,7 @@ class Transaction:
     splits: list[Split] = field(default_factory=list)
     notes: str = ""
     reconciled: bool = False
+    doc_issued: bool = False  # MEI: venda com documento fiscal (PJ)
     id: int | None = field(default=None, compare=False)
 
     def validate(self) -> None:
@@ -41,8 +42,8 @@ class Transaction:
             if self.category_id is not None or self.splits:
                 raise ValueError("transferência não pode ter categoria/splits")
             return
-        if self.category_id is None and not self.splits:
-            raise ValueError("transação sem categoria, splits ou transferência")
+        # Transação sem categoria é permitida (pendente de categorização, ex.:
+        # importada de extrato). Deve, porém, não misturar splits com categoria.
         if self.category_id is not None and self.splits:
             raise ValueError("use categoria ou splits, não ambos")
         if self.splits:

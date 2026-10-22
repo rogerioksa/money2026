@@ -6,7 +6,7 @@ from __future__ import annotations
 def test_index_serves_spa(client):
     res = client.get("/")
     assert res.status_code == 200
-    assert b"Money 99" in res.data
+    assert b"Money 2026" in res.data
 
 
 def test_api_accounts_empty(client):

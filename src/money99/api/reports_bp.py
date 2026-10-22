@@ -5,9 +5,14 @@ from __future__ import annotations
 from flask import Blueprint, jsonify, request
 
 from money99.api._common import error, get_repo
-from money99.services.reports import cash_flow, net_worth, spending_by_category
+from money99.services.reports import cash_flow, dashboard, net_worth, spending_by_category
 
 bp = Blueprint("reports", __name__, url_prefix="/api/reports")
+
+
+@bp.get("/dashboard")
+def dashboard_report():
+    return jsonify(dashboard(get_repo()))
 
 
 @bp.get("/spending")

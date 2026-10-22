@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Relatório Money 2026{% if year %} — {{ year }}{% endif %}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #1a1a1a;
+      margin: 32px;
+      font-size: 12px;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 22px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
+    .sub { color: #666; margin: 0 0 12px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid #e2e2e2; }
+    th { background: #f2f2f2; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .pos { color: #1f5c3a; }
+    .neg { color: #a02020; }
+    .total { font-weight: 700; }
+    .placeholder { color: #999; font-style: italic; }
+    .toolbar { margin-bottom: 18px; }
+    .toolbar button { font-size: 13px; padding: 6px 14px; cursor: pointer; }
+    @media print {
+      .toolbar { display: none; }
+      body { margin: 12mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Salvar como PDF / Imprimir</button>
+  </div>
+
+  <h1>Money 2026 — Relatório{% if year %} {{ year }}{% endif %}</h1>
+  <p class="sub">Emitido em {{ generated_at }}</p>
+
+  <h2>Gastos por categoria</h2>
+  <table>
+    <thead><tr><th>Categoria</th><th class="num">Total</th></tr></thead>
+    <tbody>
+      {% for r in spending %}
+      <tr><td>{{ r.category }}</td><td class="num">{{ fmt(r.total) }}</td></tr>
+      {% else %}
+      <tr><td colspan="2" class="placeholder">Sem gastos no período.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Patrimônio líquido: {{ fmt(worth.total) }}</h2>
+  <table>
+    <thead><tr><th>Conta</th><th class="num">Saldo</th></tr></thead>
+    <tbody>
+      {% for a in worth.accounts %}
+      <tr><td>{{ a.name }}</td><td class="num">{{ fmt(a.balance) }}</td></tr>
+      {% else %}
+      <tr><td colspan="2" class="placeholder">Sem contas.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Fluxo de caixa</h2>
+  <table>
+    <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Saídas</th><th class="num">Saldo</th></tr></thead>
+    <tbody>
+      {% for f in flow %}
+      <tr>
+        <td>{{ f.month }}</td>
+        <td class="num">{{ fmt(f.inflow) }}</td>
+        <td class="num">{{ fmt(f.outflow) }}</td>
+        <td class="num {{ 'neg' if f.net < 0 else 'pos' }}">{{ fmt(f.net) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4" class="placeholder">Sem movimentos.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

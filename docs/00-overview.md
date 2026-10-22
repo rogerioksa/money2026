@@ -1,7 +1,7 @@
 # 00 — Visão geral
 
-Money 99 é um gerenciador financeiro pessoal em Python, inspirado no Microsoft
-Money 99: contas, transações com categorias/transferências/splits, orçamentos
+Money 2026 é um gerenciador financeiro pessoal em Python, inspirado no Microsoft
+Money: contas, transações com categorias/transferências/splits, orçamentos
 mensais, relatórios e importação de extratos QIF/OFX.
 
 | Item | Valor |
@@ -11,7 +11,7 @@ mensais, relatórios e importação de extratos QIF/OFX.
 | Banco | SQLite (`data/money99.sqlite`), via SQLAlchemy 2.0 |
 | Dinheiro | Inteiro em centavos — nunca `float` |
 | Idioma/moeda | pt-BR / BRL |
-| Executável | `dist/Money99.exe` (PyInstaller, `webview_pack.spec`) |
+| Executável | `dist/Money2026.exe` (PyInstaller, `webview_pack.spec`) |
 | Python | 3.11+ |
 
 ## Estrutura
@@ -28,7 +28,7 @@ src/money99/
   web/                            # templates/base.html + static/{css,js}
 tests/                            # pytest
 docs/                             # esta documentação
-webview_pack.spec                 # build do Money99.exe
+webview_pack.spec                 # build do Money2026.exe
 ```
 
 ## Telas (SPA, hash-routes)
@@ -43,3 +43,4 @@ webview_pack.spec                 # build do Money99.exe
 
 - Banco: `data/money99.sqlite` (ao lado do cwd/exe; fallback `%APPDATA%/Money99`).
 - Exportações: `data/exports/`.
+- Backups: `data/backups/` (criados em Configurações → Banco de dados).

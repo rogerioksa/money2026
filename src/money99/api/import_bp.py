@@ -46,10 +46,9 @@ def preview():
 
 @bp.post("/commit")
 def commit():
-    """Importa transações. `default_category_id` é aplicado quando não há match."""
+    """Importa transações sem categoria (a categorização é feita no extrato)."""
     payload = request.get_json(silent=True) or {}
     account_id = payload.get("account_id")
-    default_category_id = payload.get("default_category_id")
     transactions = payload.get("transactions", [])
     if account_id is None:
         return error("account_id é obrigatório")
@@ -75,7 +74,6 @@ def commit():
                 description=str(item.get("description", "")),
                 account_id=int(account_id),
                 amount=int(item.get("amount", 0)),
-                category_id=int(default_category_id) if default_category_id else None,
             ))
             existing.add(key)
             imported += 1

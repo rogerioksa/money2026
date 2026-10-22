@@ -43,9 +43,9 @@ def test_transfer_with_category_rejected():
         make(transfer_account_id=2).validate()
 
 
-def test_no_category_no_splits_rejected():
-    with pytest.raises(ValueError, match="sem categoria"):
-        make(category_id=None).validate()
+def test_no_category_allowed():
+    # Transação sem categoria é permitida (pendente de categorização).
+    make(category_id=None).validate()
 
 
 def test_category_and_splits_rejected():

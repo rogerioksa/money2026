@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>Caderno do MEI — {{ caderno.month_name|capitalize if caderno else year }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: #1a1a1a;
+      margin: 24px;
+      font-size: 12px;
+      line-height: 1.35;
+    }
+    h1 { font-size: 17px; margin: 0 0 2px; text-align: center; letter-spacing: .4px; }
+    h2 { font-size: 14px; margin: 20px 0 6px; border-bottom: 1px solid #999; padding-bottom: 3px; }
+    .sub { color: #666; margin: 0 0 12px; }
+    .sheet { page-break-after: always; }
+    .sheet:last-child { page-break-after: auto; }
+    .brand { text-align: center; font-size: 11px; letter-spacing: 2px; color: #666;
+      text-transform: uppercase; margin-bottom: 12px; }
+    .doc-sub { text-align: center; color: #444; font-size: 11px; margin: 4px 0 16px; }
+    .doc-activity { text-align: center; font-weight: 700; font-size: 15px;
+      margin: 12px 0 6px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+    th, td { text-align: left; padding: 4px 6px; }
+    .grid th, .grid td { border-bottom: 1px solid #e2e2e2; }
+    .grid th { background: #f2f2f2; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pos { color: #1f5c3a; }
+    .neg { color: #a02020; }
+    tfoot td { font-weight: 700; border-top: 2px solid #999; }
+    .placeholder { color: #999; font-style: italic; }
+    .toolbar { margin-bottom: 18px; }
+    .toolbar button { font-size: 13px; padding: 6px 14px; cursor: pointer; }
+    .box { border: 1px solid #ccc; padding: 10px 12px; margin: 10px 0; }
+    .box.alert { border-color: #a02020; background: #fbeaea; }
+
+    /* Ficha oficial (Caderno do MEI, pp. 21-23) */
+    .fields { margin: 6px 0 14px; }
+    .fields td { border: 1px solid #333; padding: 6px 8px; }
+    .fields .label { width: 20%; background: #f2f2f2; font-weight: 600; }
+    .fields .value { width: 30%; }
+    .caderno th, .caderno td { border: 1px solid #333; }
+    .caderno th { background: #ececec; font-size: 11px; text-transform: uppercase; }
+    .caderno .line { width: 32px; text-align: center; font-weight: 600; }
+    .caderno tr.total td { font-weight: 700; background: #f7f7f7; }
+    .local-date { margin: 22px 0 26px; }
+    .signature { width: 55%; margin: 0 auto 18px; text-align: center; font-size: 10px; }
+    .signature .sig-line { border-bottom: 1px solid #333; height: 26px; margin-bottom: 4px; }
+    .important { border: 1px solid #333; padding: 8px 10px; margin-top: 16px;
+      font-size: 10px; }
+    .important ul { margin: 6px 0 0 18px; padding: 0; }
+
+    .daily td, .daily th { padding: 1px 5px; font-size: 10px; }
+    .daily th { background: #f2f2f2; }
+    .daily tbody tr:nth-child(even) { background: #fafafa; }
+    .profit td { border: 1px solid #333; padding: 6px 8px; }
+    .profit tr.total td { font-weight: 700; background: #f2f2f2; }
+
+    @media print {
+      .toolbar { display: none; }
+      body { margin: 0; }
+      @page { size: A4; margin: 12mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <button onclick="window.print()">Salvar como PDF / Imprimir</button>
+  </div>
+
+  {% if not data %}
+  <p class="placeholder">Nenhum perfil ativo.</p>
+  {% elif caderno %}
+
+  <div class="sheet">
+    <div class="brand">Caderno do MEI — Empreendedor Individual</div>
+    <h1>RELATÓRIO MENSAL DAS RECEITAS BRUTAS</h1>
+    <p class="doc-sub">Informações utilizadas na Declaração Simplificada do Simples
+      Nacional, que deve ser feita anualmente</p>
+    <div class="doc-activity">{{ caderno.activity_label }}</div>
+
+    <table class="fields">
+      <tr>
+        <td class="label">CNPJ:</td>
+        <td class="value">{{ profile.cnpj or "" }}</td>
+        <td class="label">Empreendedor individual:</td>
+        <td class="value">{{ profile.legal_name or profile.name }}</td>
+      </tr>
+      <tr>
+        <td class="label">Período de apuração:</td>
+        <td class="value" colspan="3">{{ caderno.period_label }}</td>
+      </tr>
+    </table>
+
+    <table class="caderno">
+      <thead>
+        <tr>
+          <th class="line">Nº</th>
+          <th>RECEITA BRUTA MENSAL — {{ caderno.activity_label }}</th>
+          <th class="num">Valor (R$)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for line in caderno.lines %}
+        <tr class="{{ 'total' if line.total else '' }}">
+          <td class="line">{{ line.number }}</td>
+          <td>{{ line.label }}</td>
+          <td class="num">{{ fmt(line.amount) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div class="local-date">LOCAL E DATA: ________________________________,
+      ______/______/________</div>
+    <div class="signature">
+      <div class="sig-line"></div>
+      Assinatura do Empreendedor Individual
+    </div>
+
+    <div class="important">
+      <b>IMPORTANTE: JUNTE A ESTE RELATÓRIO</b>
+      <ul>
+        <li>Os documentos fiscais comprobatórios das entradas de mercadorias e
+          serviços tomados referentes ao período;</li>
+        <li>As notas fiscais relativas às operações ou prestações realizadas
+          eventualmente emitidas.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="sheet">
+    <h1>Controle mensal — {{ caderno.month_name|capitalize }}/{{ year }}</h1>
+    <p class="sub">Emitido em {{ generated_at }}</p>
+
+    <h2>Vendas do mês</h2>
+    <table class="grid">
+      <thead>
+        <tr><th>Data</th><th>Mercadoria / descrição</th>
+          <th class="num">Valor (R$)</th><th>Forma de pagamento</th></tr>
+      </thead>
+      <tbody>
+        {% for sale in caderno.sales %}
+        <tr>
+          <td>{{ sale.date[8:10] }}/{{ sale.date[5:7] }}/{{ sale.date[0:4] }}</td>
+          <td>{{ sale.description or "—" }}{% if sale.doc_issued %} (NF emitida){% endif %}</td>
+          <td class="num">{{ fmt(sale.amount) }}</td>
+          <td>—</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="placeholder">Sem vendas no mês.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="2">Total de vendas</td>
+          <td class="num">{{ fmt(caderno.sales_total) }}</td><td></td></tr>
+      </tfoot>
+    </table>
+
+    <h2>Despesas do mês</h2>
+    <table class="grid">
+      <thead>
+        <tr><th>Data</th><th>Despesa</th><th class="num">Valor (R$)</th></tr>
+      </thead>
+      <tbody>
+        {% for expense in caderno.expenses %}
+        <tr>
+          <td>{{ expense.date[8:10] }}/{{ expense.date[5:7] }}/{{ expense.date[0:4] }}</td>
+          <td>{{ expense.description or "—" }}</td>
+          <td class="num">{{ fmt(expense.amount) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="placeholder">Sem despesas no mês.</td></tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td colspan="2">Total de despesas</td>
+          <td class="num">{{ fmt(caderno.expenses_total) }}</td></tr>
+      </tfoot>
+    </table>
+
+    <h2>Resumo mensal</h2>
+    <table class="grid daily">
+      <thead>
+        <tr><th>Dia</th><th class="num">Vendas (R$)</th>
+          <th class="num">Despesas (R$)</th></tr>
+      </thead>
+      <tbody>
+        {% for day in caderno.daily %}
+        <tr>
+          <td>{{ "%02d"|format(day.day) }}</td>
+          <td class="num">{{ fmt(day.sales) }}</td>
+          <td class="num">{{ fmt(day.expenses) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr><td>Total do mês</td>
+          <td class="num">{{ fmt(caderno.daily_sales) }}</td>
+          <td class="num">{{ fmt(caderno.daily_expenses) }}</td></tr>
+      </tfoot>
+    </table>
+
+    <h2>Cálculo do lucro do mês</h2>
+    <table class="profit">
+      <tr><td>Total de vendas do mês</td>
+        <td class="num">{{ fmt(caderno.sales_total) }}</td></tr>
+      <tr><td>Total de despesas do mês</td>
+        <td class="num">{{ fmt(caderno.expenses_total) }}</td></tr>
+      <tr class="total"><td>Lucro do mês</td>
+        <td class="num {{ 'neg' if caderno.profit < 0 else 'pos' }}">{{ fmt(caderno.profit) }}</td></tr>
+    </table>
+
+    <h2>Limite anual do MEI</h2>
+    <div class="box {% if data.limit_exceeded %}alert{% endif %}">
+      <div>Limite anual: <b>{{ fmt(data.annual_limit) }}</b></div>
+      <div>Faturamento acumulado em {{ year }}: <b>{{ fmt(data.revenue_total) }}</b>
+        ({{ data.limit_used_pct }}% do limite)</div>
+      <div>Disponível: <b>{{ fmt(data.limit_remaining) }}</b></div>
+      {% if data.limit_exceeded %}
+      <div class="neg"><b>ATENÇÃO:</b> o faturamento ultrapassou o limite anual do MEI.</div>
+      {% endif %}
+    </div>
+
+    <p class="sub">Documento de apoio gerencial. Não substitui a emissão oficial do DAS
+      e demais obrigações no Portal do Empreendedor.</p>
+  </div>
+
+  {% else %}
+
+  <h1>Relatório MEI — {{ year }}</h1>
+  <p class="sub">Emitido em {{ generated_at }}</p>
+
+  {% if profile %}
+  <div class="meta">
+    <div><b>{{ profile.legal_name or profile.name }}</b>{% if profile.trade_name %} — {{ profile.trade_name }}{% endif %}</div>
+    {% if profile.cnpj %}<div>CNPJ: {{ profile.cnpj }}</div>{% endif %}
+    {% if profile.opened_on %}<div>Abertura: {{ profile.opened_on }}</div>{% endif %}
+  </div>
+  {% endif %}
+
+  <h2>Faturamento mensal</h2>
+  <table class="grid">
+    <thead>
+      <tr><th>Mês</th><th class="num">Receitas (faturamento)</th>
+        <th class="num">Despesas</th><th class="num">Resultado</th></tr>
+    </thead>
+    <tbody>
+      {% for m in data.months %}
+      <tr>
+        <td>{{ "%02d"|format(m.month) }}/{{ year }}</td>
+        <td class="num">{{ fmt(m.revenue) }}</td>
+        <td class="num">{{ fmt(m.expense) }}</td>
+        <td class="num {{ 'neg' if m.result < 0 else 'pos' }}">{{ fmt(m.result) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr>
+        <td>Total</td>
+        <td class="num">{{ fmt(data.revenue_total) }}</td>
+        <td class="num">{{ fmt(data.expense_total) }}</td>
+        <td class="num {{ 'neg' if data.result_total < 0 else 'pos' }}">{{ fmt(data.result_total) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <h2>Limite anual do MEI</h2>
+  <div class="box {% if data.limit_exceeded %}alert{% endif %}">
+    <div>Limite anual: <b>{{ fmt(data.annual_limit) }}</b></div>
+    <div>Faturamento acumulado: <b>{{ fmt(data.revenue_total) }}</b> ({{ data.limit_used_pct }}% do limite)</div>
+    <div>Disponível: <b>{{ fmt(data.limit_remaining) }}</b></div>
+    {% if data.limit_exceeded %}
+    <div class="neg"><b>ATENÇÃO:</b> o faturamento ultrapassou o limite anual do MEI.</div>
+    {% endif %}
+  </div>
+
+  <p class="sub">Documento de apoio gerencial. Não substitui a emissão oficial do DAS e demais
+    obrigações no Portal do Empreendedor.</p>
+  {% endif %}
+</body>
+</html>

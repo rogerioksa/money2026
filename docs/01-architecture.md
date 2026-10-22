@@ -28,7 +28,7 @@ app.py (create_app() + sessão por request + launcher pywebview)
 ## Launcher pywebview
 
 `run_webview()` escolhe porta livre em `127.0.0.1`, sobe o Flask em thread daemon
-e abre `webview.create_window("Money 99", url)`. Recursos `templates/` e `static/`
+e abre `webview.create_window("Money 2026", url)`. Recursos `templates/` e `static/`
 são resolvidos via `_resource_base()` (usa `sys._MEIPASS` quando congelado).
 
 ## Invariantes

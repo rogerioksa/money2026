@@ -29,12 +29,12 @@ Testes web usam `monkeypatch.chdir(tmp_path)` + `create_app()` + `test_client()`
 
 - Entry: `src/money99/__main_webview__.py`; `pathex: src`; `datas` embutem
   `web/templates` + `web/static`.
-- Saída: `dist/Money99.exe` (janela, sem console).
+- Saída: `dist/Money2026.exe` (janela, sem console).
 
 ## Smoke test (obrigatório pós-build)
 
 ```powershell
-$p = Start-Process -FilePath "dist\Money99.exe" -PassThru
+$p = Start-Process -FilePath "dist\Money2026.exe" -PassThru
 Start-Sleep -Seconds 12
 if (Get-Process -Id $p.Id -ErrorAction SilentlyContinue) { "RUNNING-OK" } else { "EXITED" }
 Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue

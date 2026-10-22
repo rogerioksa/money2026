@@ -1,23 +1,119 @@
-"""Repository — mapeamento entre rows SQLAlchemy e objetos de domínio."""
+"""Repository — mapeamento entre rows SQLAlchemy e objetos de domínio.
+
+Escopo por perfil: instancie `Repository(session, profile_id)` para que todas as
+consultas de contas/categorias/transações/orçamentos fiquem restritas ao perfil.
+`profile_id=None` opera sem filtro (uso interno/migração e testes de baixo nível).
+"""
 
 from __future__ import annotations
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from money99.db.models import AccountRow, BudgetRow, CategoryRow, SplitRow, TransactionRow
+from money99.db.models import (
+    AccountRow,
+    BudgetRow,
+    CategoryRow,
+    ProfileRow,
+    SplitRow,
+    TransactionRow,
+    UserRow,
+)
 from money99.domain.account import Account, AccountType
+from money99.domain.profile import Profile, ProfileKind
 from money99.domain.transaction import Split, Transaction
+
+_SCOPED_TABLES = (AccountRow, CategoryRow, TransactionRow, BudgetRow)
+
+
+def _activity_value(activity) -> str:
+    return getattr(activity, "value", activity) or "servicos"
 
 
 class Repository:
-    def __init__(self, session: Session):
+    def __init__(self, session: Session, profile_id: int | None = None):
         self.session = session
+        self.profile_id = profile_id
+
+    def _scope(self, stmt, model):
+        if self.profile_id is not None and model in _SCOPED_TABLES:
+            stmt = stmt.where(model.profile_id == self.profile_id)
+        return stmt
+
+    # --- perfis ---
+
+    def list_profiles(self, *, active_only: bool = False) -> list[Profile]:
+        stmt = select(ProfileRow).order_by(ProfileRow.name)
+        if active_only:
+            stmt = stmt.where(ProfileRow.active.is_(True))
+        return [self._to_profile(row) for row in self.session.scalars(stmt)]
+
+    def get_profile(self, profile_id: int) -> Profile:
+        row = self.session.get(ProfileRow, profile_id)
+        if row is None:
+            raise LookupError(f"perfil {profile_id} não encontrado")
+        return self._to_profile(row)
+
+    def add_profile(self, profile: Profile) -> Profile:
+        row = ProfileRow(
+            name=profile.name,
+            kind=profile.kind.value,
+            cnpj=profile.cnpj,
+            legal_name=profile.legal_name,
+            trade_name=profile.trade_name,
+            opened_on=profile.opened_on,
+            annual_limit=profile.annual_limit,
+            activity=_activity_value(profile.activity),
+            active=profile.active,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return self._to_profile(row)
+
+    def update_profile(self, profile: Profile) -> Profile:
+        if profile.id is None:
+            raise ValueError("perfil sem id")
+        row = self.session.get(ProfileRow, profile.id)
+        if row is None:
+            raise LookupError(f"perfil {profile.id} não encontrado")
+        row.name = profile.name
+        row.kind = profile.kind.value
+        row.cnpj = profile.cnpj
+        row.legal_name = profile.legal_name
+        row.trade_name = profile.trade_name
+        row.opened_on = profile.opened_on
+        row.annual_limit = profile.annual_limit
+        row.activity = _activity_value(profile.activity)
+        row.active = profile.active
+        return self._to_profile(row)
+
+    def delete_profile(self, profile_id: int) -> None:
+        row = self.session.get(ProfileRow, profile_id)
+        if row is None:
+            raise LookupError(f"perfil {profile_id} não encontrado")
+        if self.session.scalar(select(func.count()).select_from(ProfileRow)) <= 1:
+            raise ValueError("não é possível excluir o único perfil")
+        used = self.session.scalar(
+            select(func.count()).select_from(AccountRow).where(
+                AccountRow.profile_id == profile_id
+            )
+        ) or 0
+        used += self.session.scalar(
+            select(func.count()).select_from(TransactionRow).where(
+                TransactionRow.profile_id == profile_id
+            )
+        ) or 0
+        if used:
+            raise ValueError("perfil possui dados; desative em vez de excluir")
+        for model in (BudgetRow, CategoryRow):
+            self.session.query(model).filter(model.profile_id == profile_id).delete()
+        self.session.delete(row)
 
     # --- contas ---
 
     def list_accounts(self, *, active_only: bool = False) -> list[Account]:
         stmt = select(AccountRow).order_by(AccountRow.name)
+        stmt = self._scope(stmt, AccountRow)
         if active_only:
             stmt = stmt.where(AccountRow.active.is_(True))
         return [self._to_account(row) for row in self.session.scalars(stmt)]
@@ -30,10 +126,12 @@ class Repository:
 
     def add_account(self, account: Account) -> Account:
         row = AccountRow(
+            profile_id=self.profile_id,
             name=account.name,
             type=account.type.value,
             initial_balance=account.initial_balance,
             active=account.active,
+            credit_limit=account.credit_limit,
         )
         self.session.add(row)
         self.session.flush()
@@ -49,6 +147,7 @@ class Repository:
         row.type = account.type.value
         row.initial_balance = account.initial_balance
         row.active = account.active
+        row.credit_limit = account.credit_limit
         return self._to_account(row)
 
     def delete_account(self, account_id: int) -> None:
@@ -85,6 +184,7 @@ class Repository:
 
     def list_categories(self, kind: str | None = None) -> list[CategoryRow]:
         stmt = select(CategoryRow).order_by(CategoryRow.kind, CategoryRow.name)
+        stmt = self._scope(stmt, CategoryRow)
         if kind:
             stmt = stmt.where(CategoryRow.kind == kind)
         return list(self.session.scalars(stmt))
@@ -98,10 +198,29 @@ class Repository:
     def add_category(self, name: str, kind: str, parent_id: int | None = None) -> CategoryRow:
         if kind not in ("income", "expense"):
             raise ValueError(f"kind inválido: {kind!r}")
-        row = CategoryRow(name=name, kind=kind, parent_id=parent_id)
+        row = CategoryRow(
+            profile_id=self.profile_id, name=name, kind=kind, parent_id=parent_id
+        )
         self.session.add(row)
         self.session.flush()
         return row
+
+    def seed_default_categories(self, profile_id: int) -> None:
+        """Insere as categorias padrão para um perfil recém-criado."""
+        from money99.db.session import DEFAULT_CATEGORIES
+
+        existing = self.session.scalar(
+            select(func.count())
+            .select_from(CategoryRow)
+            .where(CategoryRow.profile_id == profile_id)
+        ) or 0
+        if existing:
+            return
+        for name, kind in DEFAULT_CATEGORIES:
+            self.session.add(
+                CategoryRow(profile_id=profile_id, name=name, kind=kind, parent_id=None)
+            )
+        self.session.flush()
 
     # --- transações ---
 
@@ -109,6 +228,7 @@ class Repository:
         txn.validate()
         self._check_refs(txn)
         row = TransactionRow(
+            profile_id=self.profile_id,
             date=txn.date,
             description=txn.description,
             account_id=txn.account_id,
@@ -117,6 +237,7 @@ class Repository:
             transfer_account_id=txn.transfer_account_id,
             notes=txn.notes,
             reconciled=txn.reconciled,
+            doc_issued=txn.doc_issued,
         )
         for split in txn.splits:
             row.splits.append(
@@ -142,6 +263,7 @@ class Repository:
         row.transfer_account_id = txn.transfer_account_id
         row.notes = txn.notes
         row.reconciled = txn.reconciled
+        row.doc_issued = txn.doc_issued
         row.splits.clear()
         for split in txn.splits:
             row.splits.append(
@@ -171,6 +293,7 @@ class Repository:
         reconciled: bool | None = None,
     ) -> list[Transaction]:
         stmt = select(TransactionRow).order_by(TransactionRow.date.desc(), TransactionRow.id.desc())
+        stmt = self._scope(stmt, TransactionRow)
         if account_id is not None:
             stmt = stmt.where(
                 (TransactionRow.account_id == account_id)
@@ -209,28 +332,63 @@ class Repository:
     # --- orçamentos ---
 
     def set_budget(self, year: int, month: int, category_id: int, planned: int) -> None:
-        row = self.session.scalar(
-            select(BudgetRow).where(
-                BudgetRow.year == year,
-                BudgetRow.month == month,
-                BudgetRow.category_id == category_id,
-            )
+        stmt = select(BudgetRow).where(
+            BudgetRow.year == year,
+            BudgetRow.month == month,
+            BudgetRow.category_id == category_id,
         )
+        stmt = self._scope(stmt, BudgetRow)
+        row = self.session.scalar(stmt)
         if row is None:
             self.session.add(
-                BudgetRow(year=year, month=month, category_id=category_id, planned=planned)
+                BudgetRow(
+                    profile_id=self.profile_id,
+                    year=year,
+                    month=month,
+                    category_id=category_id,
+                    planned=planned,
+                )
             )
         else:
             row.planned = planned
 
     def list_budget(self, year: int, month: int) -> list[BudgetRow]:
-        return list(
-            self.session.scalars(
-                select(BudgetRow).where(BudgetRow.year == year, BudgetRow.month == month)
-            )
+        stmt = select(BudgetRow).where(BudgetRow.year == year, BudgetRow.month == month)
+        stmt = self._scope(stmt, BudgetRow)
+        return list(self.session.scalars(stmt))
+
+    # --- usuários ---
+
+    def count_users(self) -> int:
+        return self.session.scalar(select(func.count()).select_from(UserRow)) or 0
+
+    def get_user(self, username: str) -> UserRow | None:
+        return self.session.scalar(
+            select(UserRow).where(UserRow.username == username)
         )
 
+    def add_user(self, username: str, password_hash: str, salt: str) -> UserRow:
+        row = UserRow(username=username, password_hash=password_hash, salt=salt)
+        self.session.add(row)
+        self.session.flush()
+        return row
+
     # --- serialização ---
+
+    @staticmethod
+    def _to_profile(row: ProfileRow) -> Profile:
+        return Profile(
+            id=row.id,
+            name=row.name,
+            kind=ProfileKind(row.kind or "personal"),
+            cnpj=row.cnpj or "",
+            legal_name=row.legal_name or "",
+            trade_name=row.trade_name or "",
+            opened_on=row.opened_on or "",
+            annual_limit=row.annual_limit or 0,
+            activity=row.activity or "servicos",
+            active=bool(row.active),
+        )
 
     @staticmethod
     def _to_account(row: AccountRow) -> Account:
@@ -240,6 +398,7 @@ class Repository:
             type=AccountType(row.type),
             initial_balance=row.initial_balance,
             active=row.active,
+            credit_limit=row.credit_limit or 0,
         )
 
     @staticmethod
@@ -255,4 +414,5 @@ class Repository:
             splits=[Split(category_id=s.category_id, amount=s.amount) for s in row.splits],
             notes=row.notes,
             reconciled=row.reconciled,
+            doc_issued=bool(row.doc_issued),
         )

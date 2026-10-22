@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "money99"
 version = "0.1.0"
-description = "Gerenciador financeiro pessoal estilo Money 99 (partidas dobradas simples)"
+description = "Gerenciador financeiro pessoal Money 2026 (partidas dobradas simples)"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "GPL-3.0-or-later" }

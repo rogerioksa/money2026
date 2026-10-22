@@ -64,3 +64,55 @@ def cash_flow(repo: Repository, start: str, end: str) -> list[dict]:
         bucket["net"] = bucket["inflow"] - bucket["outflow"]
         result.append(bucket)
     return result
+
+
+def dashboard(repo: Repository) -> dict:
+    """Painel geral: saldos de todas as contas + resumo de crédito.
+
+    Crédito: `used` é o valor já utilizado no cartão (saldo negativo vira uso).
+    `available` (por conta) = saldo + limite, exibido para todas as contas.
+    O resumo de crédito soma todas as contas com `credit_limit > 0` (inclusive
+    banco com cheque especial); o saldo de contas não-cartão continua no
+    patrimônio.
+    """
+    accounts = []
+    assets_total = 0
+    credit = {
+        "limit_total": 0,
+        "used_total": 0,
+        "available_total": 0,
+        "accounts": [],
+    }
+    for account in repo.list_accounts():
+        balance = repo.account_balance(account.id)
+        entry = {
+            "account_id": account.id,
+            "name": account.name,
+            "type": account.type.value,
+            "balance": balance,
+            "credit_limit": account.credit_limit,
+            "available": balance + account.credit_limit,
+        }
+        is_credit = account.type.value == "credit"
+        if account.credit_limit > 0:
+            used = (-balance if balance < 0 else 0) if is_credit else 0
+            entry.update({
+                "credit_limit": account.credit_limit,
+                "credit_used": used,
+                "credit_available": balance + account.credit_limit,
+            })
+            credit["limit_total"] += account.credit_limit
+            credit["used_total"] += used
+            credit["available_total"] += balance + account.credit_limit
+            credit["accounts"].append(entry)
+        # Cartão com limite entra no resumo de crédito (passivo); demais contas
+        # continuam compondo o saldo em contas, mesmo quando têm limite.
+        if not (is_credit and account.credit_limit > 0):
+            assets_total += balance
+        accounts.append(entry)
+    return {
+        "accounts": accounts,
+        "assets_total": assets_total,
+        "net_worth": assets_total - credit["used_total"],
+        "credit": credit,
+    }

@@ -111,33 +111,35 @@ def test_preview_endpoint(client):
 
 def test_commit_endpoint_dedup(client):
     account = client.post("/api/accounts", json={"name": "Banco", "type": "bank"}).get_json()
-    food = next(c for c in client.get("/api/categories?kind=expense").get_json()
-                if c["name"] == "Alimentação")
     txns = [
         {"date": "2026-03-15", "amount": -4250, "description": "SUPERMERCADO"},
         {"date": "2026-03-16", "amount": -1000, "description": "PADARIA"},
     ]
     res = client.post("/api/import/commit", json={
-        "account_id": account["id"], "default_category_id": food["id"], "transactions": txns,
+        "account_id": account["id"], "transactions": txns,
     })
     assert res.status_code == 200
     assert res.get_json() == {"imported": 2, "skipped": 0}
 
     # Reimportar o mesmo arquivo não duplica
     res = client.post("/api/import/commit", json={
-        "account_id": account["id"], "default_category_id": food["id"], "transactions": txns,
+        "account_id": account["id"], "transactions": txns,
     })
     assert res.get_json() == {"imported": 0, "skipped": 2}
 
-    assert len(client.get("/api/transactions").get_json()) == 2
+    # Importadas sem categoria (categorização é feita no extrato)
+    imported = client.get("/api/transactions").get_json()
+    assert len(imported) == 2
+    assert all(t["category_id"] is None for t in imported)
 
 
 def test_commit_validation(client):
     assert client.post("/api/import/commit", json={"transactions": []}).status_code == 400
     account = client.post("/api/accounts", json={"name": "B", "type": "bank"}).get_json()
+    # importar sem categoria é permitido
     assert client.post("/api/import/commit", json={
         "account_id": account["id"], "transactions": [{"date": "2026-01-01", "amount": -1}],
-    }).status_code == 400  # sem categoria
+    }).status_code == 200
     assert client.post("/api/import/commit", json={
         "account_id": 999, "transactions": [{"date": "2026-01-01", "amount": -1}],
     }).status_code == 404

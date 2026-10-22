@@ -6,7 +6,12 @@ from money99.db.repository import Repository
 from money99.db.session import connect, init_db, make_session
 from money99.domain.account import Account
 from money99.domain.transaction import Transaction
-from money99.services.reports import cash_flow, net_worth, spending_by_category
+from money99.services.reports import (
+    cash_flow,
+    dashboard,
+    net_worth,
+    spending_by_category,
+)
 
 
 def setup_db(tmp_path):
@@ -101,3 +106,58 @@ def test_reports_api_validation(client):
     assert client.get("/api/reports/cash-flow").status_code == 400
     assert client.get("/api/reports/spending?start=2026-01-01&end=2026-12-31&kind=x"
                       ).status_code == 400
+
+
+def test_dashboard_credit_and_totals(tmp_path):
+    repo = Repository(setup_db(tmp_path))
+    repo.add_account(Account(name="Banco", type="bank", initial_balance=100000))
+    repo.add_account(Account(name="Cartão", type="credit",
+                             credit_limit=500000, initial_balance=-120000))
+
+    data = dashboard(repo)
+    assert data["assets_total"] == 100000
+    assert data["net_worth"] == 100000 - 120000
+    assert data["credit"]["limit_total"] == 500000
+    assert data["credit"]["used_total"] == 120000
+    assert data["credit"]["available_total"] == 380000
+    assert len(data["credit"]["accounts"]) == 1
+    by_name = {a["name"]: a for a in data["accounts"]}
+    assert by_name["Banco"]["available"] == 100000
+    assert by_name["Cartão"]["available"] == 380000
+
+
+def test_dashboard_available_includes_limit_for_bank(tmp_path):
+    repo = Repository(setup_db(tmp_path))
+    repo.add_account(Account(name="ITAU", type="bank", initial_balance=20105,
+                             credit_limit=427000))
+    data = dashboard(repo)
+    entry = data["accounts"][0]
+    assert entry["balance"] == 20105
+    assert entry["credit_limit"] == 427000
+    assert entry["available"] == 447105
+    # Conta bancária com limite também aparece no resumo de crédito,
+    # mas o saldo continua compondo o patrimônio.
+    assert data["assets_total"] == 20105
+    assert data["credit"]["limit_total"] == 427000
+    assert data["credit"]["used_total"] == 0
+    assert data["credit"]["available_total"] == 447105
+
+
+def test_dashboard_api(client):
+    client.post("/api/accounts", json={"name": "Banco", "type": "bank",
+                                       "initial_balance": 100000})
+    client.post("/api/accounts", json={"name": "Cartão", "type": "credit",
+                                       "credit_limit": 500000, "initial_balance": -120000})
+    res = client.get("/api/reports/dashboard")
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["credit"]["used_total"] == 120000
+    assert body["assets_total"] == 100000
+
+
+def test_print_report_endpoint(client):
+    client.post("/api/accounts", json={"name": "Banco", "type": "bank",
+                                       "initial_balance": 100000})
+    res = client.get("/reports/print?year=2026")
+    assert res.status_code == 200
+    assert "Relatório" in res.get_data(as_text=True)

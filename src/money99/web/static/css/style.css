@@ -1,4 +1,4 @@
-/* Money 99 */
+/* Money 2026 */
 :root {
   --bg: #f5f5f0;
   --fg: #1a1a1a;
@@ -30,13 +30,19 @@ body {
   margin-right: 1rem;
 }
 #main-nav a:hover { text-decoration: underline; }
-#app { padding: 1rem; max-width: 1100px; }
+#app { padding: 1rem; max-width: 1100px; width: 100%; }
 h2 { margin-top: 0.2rem; }
-.placeholder { color: #666; }
+.placeholder,
+.muted { color: #666; }
+.muted { font-size: 13px; }
+.danger-title { color: var(--danger); }
 .error { color: var(--danger); }
+
+.table-wrap { width: 100%; overflow-x: auto; }
 
 .grid {
   width: 100%;
+  min-width: 520px;
   border-collapse: collapse;
   background: #fff;
 }
@@ -49,6 +55,7 @@ h2 { margin-top: 0.2rem; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .neg { color: var(--danger); }
 .pos { color: var(--accent); }
+.uncategorized { color: #999; font-style: italic; }
 
 .form-row {
   display: flex;
@@ -72,6 +79,39 @@ h2 { margin-top: 0.2rem; }
   font: inherit;
 }
 .form-row input.num { width: 7rem; text-align: right; }
+.form-row.form-flex label { flex: 1 1 220px; }
+.form-row.form-flex input,
+.form-row.form-flex select { width: 100%; min-width: 0; }
+.form-row.form-flex button { align-self: end; }
+.form-row.form-flex label.check {
+  flex: 0 0 auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: end;
+  padding-bottom: 0.4rem;
+}
+.form-row.form-flex label.check input { width: auto; }
+.field-with-button {
+  display: flex;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+.field-with-button input { flex: 1; min-width: 0; }
+.field-with-button button {
+  padding: 0.3rem 0.6rem;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.profile-inline-edit,
+.category-inline {
+  margin-top: 0.5rem;
+}
+.profile-inline-row,
+.category-inline-row {
+  border: 1px solid var(--accent);
+  background: #fffbe6;
+}
 button {
   padding: 0.35rem 0.9rem;
   background: var(--accent);
@@ -92,6 +132,13 @@ button:hover { filter: brightness(1.1); }
   font-size: 13px;
 }
 .btn-link.danger { color: var(--danger); }
+.btn-danger { background: var(--danger); }
+.path-cell {
+  max-width: 260px;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  color: #666;
+}
 
 .toast {
   position: fixed;
@@ -124,3 +171,180 @@ canvas { background: #fff; border: 1px solid var(--border); margin-top: 0.5rem; 
   border: 1px solid var(--border);
   font-size: 13px;
 }
+
+/* Extrato: rolagem na tabela com cabeçalho fixo e rodapé (saldo + novo) fixo */
+.txn-scroll {
+  max-height: 55vh;
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.txn-table { border-collapse: separate; border-spacing: 0; min-width: 760px; }
+.txn-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--accent-light);
+  border-bottom: 1px solid var(--border);
+}
+.txn-table tr.editing { background: #fffbe6; }
+.txn-table tr.editing input,
+.txn-table tr.editing select {
+  padding: 0.2rem 0.3rem;
+  border: 1px solid var(--accent);
+  font: inherit;
+  width: 100%;
+  min-width: 0;
+}
+.txn-table tr.editing input[data-field="amount"] { text-align: right; }
+.cell-doc { width: 56px; text-align: center; font-size: 12px; }
+.badge {
+  display: inline-block;
+  padding: 0 0.3rem;
+  border-radius: 3px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+}
+tr.total-row td { font-weight: 700; border-top: 2px solid var(--border); }
+.txn-footer {
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding-top: 0.5rem;
+  border-top: 2px solid var(--border);
+}
+.txn-balance {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  padding: 0.5rem 0.75rem;
+  font-size: 15px;
+}
+.txn-balance-detail {
+  margin-left: 0.6rem;
+  font-size: 12px;
+  color: #666;
+}
+.txn-form-new { border-top: none; }
+
+/* Painel (dashboard) */
+.cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.card {
+  flex: 1;
+  min-width: 160px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  padding: 0.75rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.card-label { font-size: 12px; color: #666; }
+.card-value { font-size: 1.3rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.credit-bar { margin: 0.5rem 0; }
+
+/* Relatório em overlay (impressão/PDF dentro do app) */
+.report-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+.report-overlay[hidden] { display: none; }
+.report-overlay-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.9rem;
+  background: var(--accent);
+  color: #fff;
+}
+.report-overlay-bar .btn-link { color: #fff; }
+.report-overlay-spacer { flex: 1; }
+.report-overlay-frame {
+  flex: 1;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* Login */
+.header-logout {
+  margin-left: auto;
+  color: #fff;
+  font-size: 13px;
+}
+.header-logout:hover { color: #ffe; }
+.header-profile {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+.header-profile label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #fff;
+  font-size: 12px;
+}
+.header-profile select {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+.header-profile select option { color: #1a1a1a; }
+.header-settings {
+  color: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  margin-left: 1rem;
+}
+.header-settings:hover { text-decoration: underline; }
+.login-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--accent);
+}
+.login-card {
+  background: #fff;
+  padding: 2rem;
+  width: 340px;
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+}
+.login-card h1 { margin: 0 0 0.5rem; color: var(--accent); }
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  margin-top: 1rem;
+}
+.login-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 12px;
+  color: #444;
+}
+.login-form input {
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  font: inherit;
+}
+.login-form button { padding: 0.55rem; }

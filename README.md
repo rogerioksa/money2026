@@ -1,6 +1,6 @@
-# Money 99
+# Money 2026
 
-Gerenciador financeiro pessoal em Python, inspirado no Microsoft Money 99:
+Gerenciador financeiro pessoal em Python, inspirado no Microsoft Money:
 contas, transações com categorias, orçamentos, relatórios e importação QIF/OFX.
 
 Interface web local (Flask + pywebview) empacotada em `.exe` único (PyInstaller).

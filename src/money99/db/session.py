@@ -38,36 +38,80 @@ def init_db(engine: Engine, *, seed: bool = True) -> None:
     Base.metadata.create_all(engine)
     _migrate(engine)
     if seed:
+        _seed_profiles(engine)
         _seed_categories(engine)
+
+
+def _seed_profiles(engine: Engine) -> None:
+    """Garante ao menos um perfil 'Pessoal'. Atribui linhas órfãs a ele."""
+    with engine.begin() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM profiles")).scalar()
+        if not count:
+            conn.execute(
+                text(
+                    "INSERT INTO profiles (name, kind, cnpj, legal_name, trade_name,"
+                    " opened_on, annual_limit, activity, active)"
+                    " VALUES ('Pessoal', 'personal', '', '', '', '', 8100000,"
+                    " 'servicos', 1)"
+                )
+            )
+        default_id = conn.execute(text("SELECT MIN(id) FROM profiles")).scalar()
+        for table in ("accounts", "categories", "transactions", "budgets"):
+            conn.execute(
+                text(f"UPDATE {table} SET profile_id = :p WHERE profile_id IS NULL"),
+                {"p": default_id},
+            )
 
 
 def _seed_categories(engine: Engine) -> None:
     with engine.begin() as conn:
-        exists = conn.execute(text("SELECT COUNT(*) FROM categories")).scalar()
-        if exists:
-            return
-        for name, kind in DEFAULT_CATEGORIES:
-            conn.execute(
-                text("INSERT INTO categories (name, kind, parent_id) VALUES (:n, :k, NULL)"),
-                {"n": name, "k": kind},
-            )
+        for profile_id in conn.execute(text("SELECT id FROM profiles")).scalars():
+            exists = conn.execute(
+                text("SELECT COUNT(*) FROM categories WHERE profile_id = :p"),
+                {"p": profile_id},
+            ).scalar()
+            if exists:
+                continue
+            for name, kind in DEFAULT_CATEGORIES:
+                conn.execute(
+                    text(
+                        "INSERT INTO categories (profile_id, name, kind, parent_id)"
+                        " VALUES (:p, :n, :k, NULL)"
+                    ),
+                    {"p": profile_id, "n": name, "k": kind},
+                )
 
 
 def _migrate(engine: Engine) -> None:
     """Adiciona colunas ausentes em bancos antigos. Nunca apaga dados."""
     expected: dict[str, list[tuple[str, str]]] = {
+        "profiles": [
+            ("name", "VARCHAR(120)"),
+            ("kind", "VARCHAR(20)"),
+            ("cnpj", "VARCHAR(20)"),
+            ("legal_name", "VARCHAR(200)"),
+            ("trade_name", "VARCHAR(200)"),
+            ("opened_on", "VARCHAR(10)"),
+            ("annual_limit", "INTEGER"),
+            ("activity", "VARCHAR(20)"),
+            ("active", "BOOLEAN"),
+        ],
         "accounts": [
+            ("profile_id", "INTEGER"),
             ("name", "VARCHAR(120)"),
             ("type", "VARCHAR(20)"),
             ("initial_balance", "INTEGER"),
             ("active", "BOOLEAN"),
+            ("credit_limit", "INTEGER"),
         ],
         "categories": [
+            ("profile_id", "INTEGER"),
             ("name", "VARCHAR(120)"),
             ("kind", "VARCHAR(10)"),
             ("parent_id", "INTEGER"),
         ],
         "transactions": [
+            ("profile_id", "INTEGER"),
             ("date", "VARCHAR(10)"),
             ("description", "VARCHAR(240)"),
             ("account_id", "INTEGER"),
@@ -76,6 +120,7 @@ def _migrate(engine: Engine) -> None:
             ("transfer_account_id", "INTEGER"),
             ("notes", "TEXT"),
             ("reconciled", "BOOLEAN"),
+            ("doc_issued", "BOOLEAN"),
         ],
         "splits": [
             ("transaction_id", "INTEGER"),
@@ -83,10 +128,16 @@ def _migrate(engine: Engine) -> None:
             ("amount", "INTEGER"),
         ],
         "budgets": [
+            ("profile_id", "INTEGER"),
             ("year", "INTEGER"),
             ("month", "INTEGER"),
             ("category_id", "INTEGER"),
             ("planned", "INTEGER"),
+        ],
+        "users": [
+            ("username", "VARCHAR(120)"),
+            ("password_hash", "VARCHAR(255)"),
+            ("salt", "VARCHAR(64)"),
         ],
     }
     inspector = inspect(engine)
@@ -98,3 +149,17 @@ def _migrate(engine: Engine) -> None:
             for col_name, col_type in columns:
                 if col_name not in existing:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}"))
+        # Backfill de nulos em colunas numéricas recém-adicionadas (ADD COLUMN
+        # não aplica DEFAULT a linhas já existentes no SQLite).
+        if inspector.has_table("accounts"):
+            conn.execute(text(
+                "UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL"
+            ))
+        if inspector.has_table("profiles"):
+            conn.execute(text(
+                "UPDATE profiles SET activity = 'servicos' WHERE activity IS NULL"
+            ))
+        if inspector.has_table("transactions"):
+            conn.execute(text(
+                "UPDATE transactions SET doc_issued = 0 WHERE doc_issued IS NULL"
+            ))

@@ -138,3 +138,95 @@ def test_legacy_migration_adds_missing_column(tmp_path):
         assert "reconciled" in cols
         row = conn.execute(text("SELECT description, amount FROM transactions")).fetchone()
         assert row == ("antiga", -999)
+
+
+def test_legacy_migration_adds_credit_limit(tmp_path):
+    """Banco antigo (accounts sem 'credit_limit') é migrado sem perder dados."""
+    db_file = tmp_path / "legacy2.sqlite"
+    engine = connect(db_file)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE accounts ("
+            "id INTEGER PRIMARY KEY, name VARCHAR(120), type VARCHAR(20),"
+            "initial_balance INTEGER, active BOOLEAN)"
+        ))
+        conn.execute(text(
+            "INSERT INTO accounts (name, type, initial_balance, active)"
+            " VALUES ('Banco', 'bank', 1000, 1)"
+        ))
+    init_db(engine)
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(accounts)"))}
+        assert "credit_limit" in cols
+        row = conn.execute(text("SELECT name, initial_balance FROM accounts")).fetchone()
+        assert row == ("Banco", 1000)
+
+
+def test_account_credit_limit_persist_and_clear(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    card = repo.add_account(Account(name="Cartão", type="credit", credit_limit=500000))
+    assert repo.get_account(card.id).credit_limit == 500000
+    # Limite também é aceito em outros tipos de conta (ex.: limite de cheque especial)
+    bank = repo.add_account(Account(name="Banco", type="bank", credit_limit=999))
+    assert repo.get_account(bank.id).credit_limit == 999
+    # Sem limite informado permanece zerado
+    cash = repo.add_account(Account(name="Dinheiro", type="cash"))
+    assert repo.get_account(cash.id).credit_limit == 0
+
+
+def test_migration_backfills_null_credit_limit(tmp_path):
+    """Banco cuja coluna credit_limit existe mas com NULL (ADD COLUMN antigo)
+    não pode quebrar o carregamento das contas (bug de 500)."""
+    db_file = tmp_path / "legacy_null.sqlite"
+    engine = connect(db_file)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE accounts ("
+            "id INTEGER PRIMARY KEY, name VARCHAR(120), type VARCHAR(20),"
+            "initial_balance INTEGER, active BOOLEAN, credit_limit INTEGER)"
+        ))
+        conn.execute(text(
+            "INSERT INTO accounts (name, type, initial_balance, active, credit_limit)"
+            " VALUES ('ITAU', 'bank', 3856, 1, NULL)"
+        ))
+    init_db(engine)
+    repo = Repository(make_session(engine))
+    accounts = repo.list_accounts()
+    assert accounts[0].credit_limit == 0
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT credit_limit FROM accounts")).scalar() == 0
+
+
+def test_migration_adds_mei_columns(tmp_path):
+    """Banco antigo (sem profiles.activity e transactions.doc_issued) é migrado
+    e recebe backfill, sem perder dados."""
+    db_file = tmp_path / "legacy_mei.sqlite"
+    engine = connect(db_file)
+    init_db(engine)  # schema atual
+    with engine.begin() as conn:
+        conn.execute(text("ALTER TABLE profiles DROP COLUMN activity"))
+        conn.execute(text("ALTER TABLE transactions DROP COLUMN doc_issued"))
+        conn.execute(text(
+            "INSERT INTO profiles (name, kind, cnpj, legal_name, trade_name,"
+            " opened_on, annual_limit, active)"
+            " VALUES ('Antigo', 'business', '', '', '', '', 8100000, 1)"
+        ))
+        conn.execute(text(
+            "INSERT INTO transactions (profile_id, date, description, account_id,"
+            " amount, category_id, transfer_account_id, notes, reconciled)"
+            " VALUES (1, '2026-01-15', 'antiga', 1, -999, 1, NULL, '', 0)"
+        ))
+    init_db(engine)  # roda a migração
+    with engine.connect() as conn:
+        pcols = {r[1] for r in conn.execute(text("PRAGMA table_info(profiles)"))}
+        tcols = {r[1] for r in conn.execute(text("PRAGMA table_info(transactions)"))}
+        assert "activity" in pcols
+        assert "doc_issued" in tcols
+        assert conn.execute(
+            text("SELECT activity FROM profiles WHERE name = 'Antigo'")
+        ).scalar() == "servicos"
+        assert conn.execute(
+            text("SELECT doc_issued FROM transactions WHERE description = 'antiga'")
+        ).scalar() == 0

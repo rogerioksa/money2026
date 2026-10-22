@@ -54,3 +54,23 @@ def exports_dir() -> Path:
     path = data_dir() / "exports"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def backups_dir() -> Path:
+    path = data_dir() / "backups"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def secret_key() -> str:
+    """Chave de assinatura da sessão, persistida em data/. Criada se faltar."""
+    import secrets
+
+    path = data_dir() / ".secret_key"
+    if path.exists():
+        value = path.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+    value = secrets.token_hex(32)
+    path.write_text(value, encoding="utf-8")
+    return value

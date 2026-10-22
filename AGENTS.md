@@ -1,7 +1,9 @@
 # AGENTS.md
 
-Money 99 — gerenciador financeiro pessoal (Python, Flask + pywebview, SQLite).
+Money 2026 — gerenciador financeiro pessoal (Python, Flask + pywebview, SQLite).
 UI e docs em pt-BR; identificadores de código em inglês. Pacote Python: `money99`.
+Nome exibido do produto: **Money 2026**; pacote, `APP_NAME` e arquivo do banco
+continuam `money99` (compatibilidade de dados).
 Roda como janela nativa — não há URL de servidor para navegar.
 
 ## Setup e comandos (Windows / PowerShell 5.1)
@@ -15,7 +17,7 @@ Roda como janela nativa — não há URL de servidor para navegar.
   3. `node --check "src\money99\web\static\js\app.js"`
 - Teste focado: `.\.venv\Scripts\python.exe -m pytest tests/test_web_api.py -q` (ou `-k nome`).
 - Build EXE: `.\.venv\Scripts\pyinstaller.exe webview_pack.spec --noconfirm --clean`
-  (~1,5 min; timeout de ferramenta ≥ 300000 ms). Saída `dist/Money99.exe`; fazer smoke:
+  (~1,5 min; timeout de ferramenta ≥ 300000 ms). Saída `dist/Money2026.exe`; fazer smoke:
   iniciar o processo, esperar ~12 s e conferir que segue vivo (`RUNNING-OK`).
 
 ## Layout
@@ -32,11 +34,15 @@ Roda como janela nativa — não há URL de servidor para navegar.
 
 ## Invariantes (não quebrar)
 
+- **Layout/UI**: preservar a estrutura e o histórico das telas (`base.html`,
+  `app.js`, `style.css`). Em refatoração, evoluir sem remover rotas, IDs, classes
+  ou contratos da API em uso — mudança que quebra o layout só com pedido explícito.
 - Dinheiro é inteiro em centavos — nunca `float`; parsing pt-BR só nas bordas
   (`parse_brl`/`format_brl` no backend, `parseBRL`/`fmtMinor` no frontend).
 - Datas na API são ISO `AAAA-MM-DD`; exibição BR `DD/MM/AAAA` só no frontend.
 - `Transaction.validate()` é a fonte da verdade: valor ≠ 0; transferência não tem
   categoria/splits; splits (≥1, categorias distintas) somam o valor da transação.
+  Transação **sem categoria** é válida (pendente de categorização — ex.: importada).
 - Sinal: `amount` é assinado do ponto de vista de `account_id` (saída negativa).
   Transferência: uma linha com `transfer_account_id`; a conta destino recebe `-amount`.
 - Fim de mês em filtros usa a string `AAAA-MM-31` (comparação lexicográfica) — não
@@ -45,6 +51,29 @@ Roda como janela nativa — não há URL de servidor para navegar.
   Endpoints de escrita commitam no teardown; em erro, rollback (feito em `app.py`).
 - Nova coluna → atualizar `models.py` + `db/session._migrate` + `repository` +
   teste de migração legada em `test_db.py` (banco antigo sem a coluna não pode quebrar).
+  `_migrate` também faz backfill de `NULL` em colunas numéricas recém-adicionadas
+  (SQLite `ADD COLUMN` não aplica DEFAULT a linhas existentes).
+- **Manutenção do banco** (`/api/maintenance/*`): backup via
+  `sqlite3.Connection.backup()` em `data/backups/`; restauração valida
+  `integrity_check`/tabelas e reset recria schema+seed. Restore/reset sempre
+  criam backup automático (`pre-restore`/`pre-reset`), limpam a sessão e nunca
+  apagam backups. Confirmações obrigatórias: `RESTAURAR` / `APAGAR`.
+- **Autenticação**: um usuário local (tabela `users`, PBKDF2 em `services/auth.py`);
+  guarda em `app.py` (`before_request`) libera só `/login`, `/static/*` e `/api/auth/*`.
+  Sessão via cookie assinado (`SECRET_KEY` em `data/.secret_key`). Testes web usam o
+  fixture `client` (já autenticado) ou `anon_client` (sem sessão, `tests/conftest.py`).
+- **Perfis**: dados (contas/categorias/transações/orçamentos) são escopados por
+  `profile_id`; `Repository(session, profile_id)` e o perfil ativo vem da sessão
+  (`PUT /api/auth/profile`). Migração cria perfil "Pessoal" e atribui órfãos a ele.
+  Usuários/perfis **não** são escopados. `get_repo()` sem args = perfil atual;
+  `get_repo(None)` = sem escopo (uso interno).
+- **MEI**: perfil `kind=business`; relatórios em `services/mei.py` (receitas =
+  categorias `income`, despesas = `expense`; transferências e sem-categoria
+  ignoradas). `annual_limit` em centavos (padrão R$ 81.000,00). O relatório
+  mensal segue o **Caderno do MEI** (`monthly_caderno` + `/api/mei/caderno` +
+  `/reports/mei?year=&month=`): `profile.activity`
+  (`comercio`/`industria`/`servicos`) escolhe as linhas 1-3/4-6/7-9 e
+  `Transaction.doc_issued` separa venda com/sem documento fiscal (linhas 1 vs 2).
 
 ## Proibições
 

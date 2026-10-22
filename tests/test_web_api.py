@@ -90,10 +90,11 @@ def test_transaction_validation_via_api(client):
     account = create_account(client)
     cat = expense_category(client)
 
+    # sem categoria é permitido (pendente de categorização)
     res = client.post("/api/transactions", json={
         "date": "2026-10-05", "account_id": account["id"], "amount": -100,
     })
-    assert res.status_code == 400  # sem categoria
+    assert res.status_code == 201
 
     res = client.post("/api/transactions", json={
         "date": "19/10/2026", "account_id": account["id"], "amount": -100,
@@ -204,11 +205,15 @@ def test_persist_across_app_instances(tmp_path):
     db_file = tmp_path / "persist.sqlite"
     app1 = create_app(str(db_file))
     app1.config["TESTING"] = True
-    res = app1.test_client().post("/api/accounts", json={"name": "Banco", "type": "bank"})
+    c1 = app1.test_client()
+    c1.post("/api/auth/setup", json={"username": "tester", "password": "senha123"})
+    res = c1.post("/api/accounts", json={"name": "Banco", "type": "bank"})
     assert res.status_code == 201
 
     app2 = create_app(str(db_file))
     app2.config["TESTING"] = True
-    accounts = app2.test_client().get("/api/accounts").get_json()
+    c2 = app2.test_client()
+    c2.post("/api/auth/login", json={"username": "tester", "password": "senha123"})
+    accounts = c2.get("/api/accounts").get_json()
     assert len(accounts) == 1
     assert accounts[0]["name"] == "Banco"

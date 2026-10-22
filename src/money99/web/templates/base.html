@@ -3,19 +3,28 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Money 99</title>
+  <title>Money 2026</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <header class="app-header">
-    <h1>Money 99</h1>
+    <h1>Money 2026</h1>
     <nav id="main-nav">
+      <a href="#/painel">Painel</a>
       <a href="#/contas">Contas</a>
       <a href="#/extrato">Extrato</a>
       <a href="#/orcamento">Orçamento</a>
       <a href="#/relatorios">Relatórios</a>
+      <a href="#/mei">MEI</a>
       <a href="#/importar">Importar</a>
     </nav>
+    <span class="header-profile">
+      <label>Perfil
+        <select id="profile-select"></select>
+      </label>
+    </span>
+    <a href="#/config" id="settings-link" class="header-settings" title="Configurações">Config</a>
+    <button id="logout-btn" class="btn-link header-logout" type="button">Sair</button>
   </header>
   <main id="app">
     <p class="placeholder">Carregando…</p>
