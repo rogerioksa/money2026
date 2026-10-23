@@ -51,8 +51,7 @@ def _seed_profiles(engine: Engine) -> None:
                 text(
                     "INSERT INTO profiles (name, kind, cnpj, legal_name, trade_name,"
                     " opened_on, annual_limit, activity, active)"
-                    " VALUES ('Pessoal', 'personal', '', '', '', '', 8100000,"
-                    " 'servicos', 1)"
+                    " VALUES ('Pessoal', 'personal', '', '', '', '', 0, 'servicos', 1)"
                 )
             )
         default_id = conn.execute(text("SELECT MIN(id) FROM profiles")).scalar()

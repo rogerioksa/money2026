@@ -122,6 +122,48 @@ h2 { margin-top: 0.2rem; }
   font-size: 12px;
   white-space: nowrap;
 }
+.import-form-layout {
+  align-items: end;
+}
+.import-paste-box {
+  margin: 0.5rem 0 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-width: 760px;
+}
+.import-paste-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+.import-paste-box textarea {
+  width: 100%;
+  min-height: 180px;
+  resize: vertical;
+  font: inherit;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.preview-summary {
+  margin: 1rem 0 0.75rem;
+  padding: 0.75rem 0.9rem;
+  background: #fff;
+  border: 1px solid var(--border);
+}
+.preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.4rem;
+  font-size: 13px;
+  color: #444;
+}
+.preview-summary h3 {
+  margin: 0;
+}
 .profile-inline-edit,
 .category-inline {
   margin-top: 0.5rem;

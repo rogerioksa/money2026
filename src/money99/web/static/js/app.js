@@ -1123,25 +1123,65 @@ async function viewReports() {
 
 async function viewImport() {
   app.innerHTML = `
-    <h2>Importar extrato (QIF / OFX)</h2>
+    <h2>Importar extrato (QIF / OFX / texto colado)</h2>
     <p class="placeholder">Os lançamentos entram sem categoria; categorize depois no Extrato.</p>
-    <form id="import-form" class="form-row form-flex">
+    <form id="import-form" class="form-row form-flex import-form-layout">
       <label>Conta <select name="account_id" required>${selectOptions(cache.accounts)}</select></label>
-      <label>Arquivo <input type="file" name="file" accept=".qif,.ofx,.qfx,.txt" required></label>
+      <label>Arquivo <input type="file" name="file" accept=".qif,.ofx,.qfx,.txt"></label>
       <button type="submit">Pré-visualizar</button>
     </form>
+    <div class="import-paste-box">
+      <label for="import-paste">Ou cole o extrato aqui</label>
+      <div class="import-paste-actions">
+        <button type="button" class="btn-link" id="paste-clipboard-btn">Colar do clipboard</button>
+        <button type="button" class="btn-link" id="clear-import-paste-btn">Limpar</button>
+      </div>
+      <textarea id="import-paste" rows="12" placeholder="Cole a movimentação do banco aqui, por exemplo:\n22/10/2026 Pix enviado-R$ 49,42 R$ 800,62 Caixa Economica Feder"></textarea>
+    </div>
     <div id="preview"></div>`;
+
+  const importPasteField = document.getElementById("import-paste");
+  document.getElementById("clear-import-paste-btn").addEventListener("click", () => {
+    importPasteField.value = "";
+    importPasteField.focus();
+  });
+
+  document.getElementById("paste-clipboard-btn").addEventListener("click", async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        toast("Clipboard vazio.", true);
+        return;
+      }
+      importPasteField.value = text;
+      importPasteField.focus();
+      toast("Texto colado do clipboard.");
+    } catch (err) {
+      toast("Não foi possível ler o clipboard neste ambiente.", true);
+    }
+  });
 
   document.getElementById("import-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const form = ev.target;
     const file = form.file.files[0];
-    if (!file) return;
-    const content = await file.text();
+    const pasted = importPasteField.value.trim();
+    if (!file && !pasted) {
+      toast("Selecione um arquivo ou cole o texto do extrato.", true);
+      return;
+    }
+
+    let content = pasted.toUpperCase();
+    let filename = "extrato-colado.txt";
+    if (file) {
+      content = (await file.text()).toUpperCase();
+      filename = file.name;
+    }
+
     try {
       const preview = await api("/api/import/preview", {
         method: "POST",
-        body: JSON.stringify({ content, filename: file.name }),
+        body: JSON.stringify({ content, filename }),
       });
       renderImportPreview(preview.transactions, Number(form.account_id.value));
     } catch (err) { toast(err.message, true); }
@@ -1150,23 +1190,43 @@ async function viewImport() {
 
 function renderImportPreview(transactions, accountId) {
   const container = document.getElementById("preview");
+  if (!transactions.length) {
+    container.innerHTML = "<p class=\"muted\">Nenhuma transação válida foi encontrada para importar.</p>";
+    return;
+  }
+  const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const accountName = cache.accounts.find((acc) => Number(acc.id) === Number(accountId))?.name || "Conta";
   const rows = transactions.map((t) => `
     <tr>
       <td>${fmtDate(t.date)}</td>
       <td>${esc(t.description)}</td>
-      <td>${esc(t.memo)}</td>
       <td class="num ${t.amount < 0 ? "neg" : "pos"}">${fmtMinor(t.amount)}</td>
     </tr>`).join("");
 
   container.innerHTML = `
-    <h3>${transactions.length} lançamento(s) encontrado(s)</h3>
+    <div class="preview-summary">
+      <h3>${transactions.length} lançamento(s) encontrado(s)</h3>
+      <div class="preview-meta">
+        <span>Total movimentado: <strong>${fmtMinor(total)}</strong></span>
+        <span>Conta destino: <strong>${esc(accountName)}</strong></span>
+      </div>
+      <p class="muted">Revise os itens abaixo antes de confirmar a importação. Os valores serão gravados sem categoria; a categorização pode ser ajustada depois no Extrato.</p>
+    </div>
     <table class="grid">
-      <thead><tr><th>Data</th><th>Descrição</th><th>Memo</th><th class="num">Valor</th></tr></thead>
+      <thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
     <p><button id="import-confirm">Confirmar importação</button></p>`;
 
-  document.getElementById("import-confirm").addEventListener("click", async () => {
+  const confirmBtn = document.getElementById("import-confirm");
+  confirmBtn.addEventListener("click", async () => {
+    const summary = `Confirmar importação de ${transactions.length} transação(ões) no valor total de ${fmtMinor(total)} na conta ${accountName}?\n\nEssa ação grava os registros sem categoria e não pode ser revertida pela interface.`;
+    if (!window.confirm(summary)) {
+      return;
+    }
+    if (confirmBtn.disabled) return;
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = "Importando...";
     try {
       const result = await api("/api/import/commit", {
         method: "POST",
@@ -1175,7 +1235,12 @@ function renderImportPreview(transactions, accountId) {
       toast(`Importados: ${result.imported}, ignorados (duplicados): ${result.skipped}`);
       await refreshCache();
       location.hash = "#/extrato";
-    } catch (err) { toast(err.message, true); }
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = "Confirmar importação";
+    }
   });
 }
 
@@ -1374,7 +1439,7 @@ async function viewSettings() {
       <td>${esc(p.name)}</td>
       <td>${p.kind === "business" ? "Empresarial (MEI)" : "Pessoal"}</td>
       <td>${esc(p.cnpj || "—")}</td>
-      <td>${p.annual_limit ? fmtMinor(p.annual_limit) : "—"}</td>
+      <td>${p.kind === "business" && p.annual_limit ? fmtMinor(p.annual_limit) : "—"}</td>
       <td>${p.id === cache.profileId ? '<b class="pos">ativo</b>' : `<button class="btn-link" data-action="activate">Ativar</button>`}</td>
       <td>
         <button class="btn-link" data-action="edit">Editar</button>
@@ -1474,6 +1539,22 @@ async function viewSettings() {
     } catch (err) { toast(err.message, true); }
   });
 
+  const annualLimitField = document.querySelector('#profile-form [name="annual_limit"]');
+  const toggleAnnualLimitField = (kind) => {
+    const isBusiness = kind === "business";
+    annualLimitField.disabled = !isBusiness;
+    annualLimitField.closest("label").style.display = isBusiness ? "" : "none";
+    if (!isBusiness) {
+      annualLimitField.value = "0,00";
+    } else if (!annualLimitField.value || annualLimitField.value === "0,00") {
+      annualLimitField.value = "81.000,00";
+    }
+  };
+  document.getElementById("profile-form").querySelector('[name="kind"]').addEventListener("change", (ev) => {
+    toggleAnnualLimitField(ev.target.value);
+  });
+  toggleAnnualLimitField(document.getElementById("profile-form").querySelector('[name="kind"]').value);
+
   document.getElementById("profile-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const f = ev.target;
@@ -1487,7 +1568,7 @@ async function viewSettings() {
           legal_name: f.legal_name.value,
           trade_name: f.trade_name.value,
           opened_on: f.opened_on.value,
-          annual_limit: parseBRL(f.annual_limit.value) ?? 8100000,
+          annual_limit: f.kind.value === "business" ? (parseBRL(f.annual_limit.value) ?? 8100000) : 0,
           activity: f.activity.value,
         }),
       });
@@ -1607,6 +1688,7 @@ function openProfileEdit(profile) {
   if (!profile) return;
   const container = document.createElement("div");
   container.className = "profile-inline-edit";
+  const isBusiness = profile.kind === "business";
   container.innerHTML = `
     <div class="form-row form-flex profile-inline-row">
       <label>Nome <input name="p-name" value="${esc(profile.name)}" maxlength="120"></label>
@@ -1632,12 +1714,24 @@ function openProfileEdit(profile) {
       <label>Razão social <input name="p-legal" value="${esc(profile.legal_name || "")}" maxlength="200"></label>
       <label>Nome fantasia <input name="p-trade" value="${esc(profile.trade_name || "")}" maxlength="200"></label>
       <label>Abertura <input type="date" name="p-opened" value="${esc(profile.opened_on || "")}"></label>
-      <label>Limite anual <input name="p-limit" class="num" value="${fmtMinor(profile.annual_limit)}"></label>
+      <label class="profile-limit-field" style="display: ${isBusiness ? "" : "none"};">Limite anual <input name="p-limit" class="num" value="${fmtMinor(profile.annual_limit || 8100000)}"></label>
       <button type="button" data-action="save">Salvar</button>
       <button type="button" data-action="cancel" class="btn-link">Cancelar</button>
     </div>`;
   const appEl = document.getElementById("app");
   appEl.appendChild(container);
+  const kindField = container.querySelector('[name="p-kind"]');
+  const limitField = container.querySelector('[name="p-limit"]');
+  const limitLabel = container.querySelector('.profile-limit-field');
+  const toggleProfileLimit = () => {
+    const isBusinessKind = kindField.value === "business";
+    if (limitLabel) limitLabel.style.display = isBusinessKind ? "" : "none";
+    if (limitField && !isBusinessKind) {
+      limitField.value = "0,00";
+    }
+  };
+  kindField.addEventListener("change", toggleProfileLimit);
+  toggleProfileLimit();
   container.querySelector('[data-action="cancel"]').addEventListener("click", () => container.remove());
   container.querySelector('[data-action="lookup-cnpj"]').addEventListener("click", () => {
     lookupCnpj(container.querySelector('[name="p-cnpj"]').value, (data) => {
@@ -1653,17 +1747,18 @@ function openProfileEdit(profile) {
     });
   });
   container.querySelector('[data-action="save"]').addEventListener("click", async () => {
+    const selectedKind = container.querySelector('[name="p-kind"]').value;
     try {
       await api(`/api/profiles/${profile.id}`, {
         method: "PUT",
         body: JSON.stringify({
           name: container.querySelector('[name="p-name"]').value,
-          kind: container.querySelector('[name="p-kind"]').value,
+          kind: selectedKind,
           cnpj: container.querySelector('[name="p-cnpj"]').value,
           legal_name: container.querySelector('[name="p-legal"]').value,
           trade_name: container.querySelector('[name="p-trade"]').value,
           opened_on: container.querySelector('[name="p-opened"]').value,
-          annual_limit: parseBRL(container.querySelector('[name="p-limit"]').value) ?? profile.annual_limit,
+          annual_limit: selectedKind === "business" ? (parseBRL(container.querySelector('[name="p-limit"]').value) ?? profile.annual_limit ?? 8100000) : 0,
           activity: container.querySelector('[name="p-activity"]').value,
           active: profile.active,
         }),

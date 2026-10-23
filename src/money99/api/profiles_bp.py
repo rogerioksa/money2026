@@ -26,15 +26,17 @@ def _serialize(profile: Profile) -> dict:
 
 
 def _build(payload: dict, *, profile_id: int | None = None) -> Profile:
+    kind = str(payload.get("kind", "personal") or "personal")
+    annual_limit = 0 if kind == "personal" else int(payload.get("annual_limit", DEFAULT_ANNUAL_LIMIT))
     return Profile(
         id=profile_id,
         name=str(payload.get("name", "")),
-        kind=payload.get("kind", "personal"),
+        kind=kind,
         cnpj=str(payload.get("cnpj", "") or ""),
         legal_name=str(payload.get("legal_name", "") or ""),
         trade_name=str(payload.get("trade_name", "") or ""),
         opened_on=str(payload.get("opened_on", "") or ""),
-        annual_limit=int(payload.get("annual_limit", DEFAULT_ANNUAL_LIMIT)),
+        annual_limit=annual_limit,
         activity=payload.get("activity", "servicos") or "servicos",
         active=bool(payload.get("active", True)),
     )

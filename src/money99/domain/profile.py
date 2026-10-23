@@ -39,7 +39,9 @@ class Profile:
             raise ValueError("nome do perfil é obrigatório")
         self.kind = ProfileKind(self.kind)
         self.activity = MeiActivity(self.activity or MeiActivity.SERVICOS)
-        if self.annual_limit is None:
+        if self.kind == ProfileKind.PERSONAL:
+            self.annual_limit = 0
+        elif self.annual_limit is None:
             self.annual_limit = DEFAULT_ANNUAL_LIMIT
         if self.annual_limit < 0:
             raise ValueError("limite anual não pode ser negativo")

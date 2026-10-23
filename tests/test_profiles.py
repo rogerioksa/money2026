@@ -20,6 +20,12 @@ def test_default_personal_profile_created(app):
         assert len(profiles) == 1
         assert profiles[0]["kind"] == "personal"
         assert profiles[0]["name"] == "Pessoal"
+        assert profiles[0]["annual_limit"] == 0
+
+
+def test_personal_profile_has_no_annual_limit(client):
+    created = client.post("/api/profiles", json={"name": "Pessoal 2", "kind": "personal"}).get_json()
+    assert created["annual_limit"] == 0
 
 
 def test_create_business_profile_seeds_categories(client):

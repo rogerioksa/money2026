@@ -17,7 +17,6 @@ def _serialize(txn) -> dict:
         "date": txn.date,
         "amount": txn.amount,
         "description": txn.description,
-        "memo": txn.memo,
         "external_id": txn.external_id,
         "raw_category": txn.raw_category,
     }

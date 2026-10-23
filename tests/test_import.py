@@ -54,6 +54,15 @@ DATA:OFXSGML
 </OFX>
 """
 
+PASTE_SAMPLE = """Data Descrição Valor Saldo
+Quinta, 22 de outubro de 2026
+22/10/2026 Pix enviado-R$ 49,42 R$ 800,62 Caixa Economica Feder
+Terça, 20 de outubro de 2026
+20/10/2026 Pix enviado-R$ 322,23 R$ 850,04 Elektro Redes S A
+20/10/2026 Debito aut. titulo capitalizacao-R$ 50,00 R$ 1.172,27 Iaj60336758
+20/10/2026 Pix recebido R$ 1.165,60 R$ 1.222,27 Saulo P. Lima - Me
+"""
+
 
 def test_parse_qif():
     txns = parse_qif(QIF_SAMPLE)
@@ -61,9 +70,9 @@ def test_parse_qif():
     first = txns[0]
     assert first.date == "1999-12-31"
     assert first.amount == -5000
-    assert first.description == "MERCADO XYZ"
-    assert first.memo == "Meat"
-    assert first.raw_category == "Salary" or txns[1].raw_category == "Salary"
+    assert first.description == "MERCADO XYZ MEAT"
+    assert first.memo == ""
+    assert first.raw_category.upper() == "SALARY" or txns[1].raw_category.upper() == "SALARY"
 
 
 def test_parse_qif_iso_dates():
@@ -78,7 +87,7 @@ def test_parse_ofx():
     assert len(txns) == 2
     assert txns[0].date == "2026-03-15"
     assert txns[0].amount == -4250
-    assert txns[0].description == "SUPERMERCADO"
+    assert txns[0].description == "SUPERMERCADO COMPRA SEMANAL"
     assert txns[0].external_id == "ABC123"
     assert txns[1].amount == 200000
 
@@ -91,6 +100,17 @@ def test_parse_statement_detects_format():
 def test_parse_statement_unknown_format():
     with pytest.raises(StatementParseError):
         parse_statement("isso nao e um extrato", "x.txt")
+
+
+def test_parse_pasted_bank_text():
+    txns = parse_statement(PASTE_SAMPLE, "extrato.txt")
+    assert len(txns) == 4
+    assert txns[0].date == "2026-10-22"
+    assert txns[0].amount == -4942
+    assert txns[0].description == "PIX ENVIADO CAIXA ECONOMICA FEDER"
+    assert txns[0].memo == ""
+    assert txns[3].amount == 116560
+    assert txns[3].description == "PIX RECEBIDO SAULO P. LIMA - ME"
 
 
 def test_parse_ofx_ignores_incomplete_blocks():
