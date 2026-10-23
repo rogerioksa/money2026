@@ -45,6 +45,9 @@ Roda como janela nativa — não há URL de servidor para navegar.
   Transação **sem categoria** é válida (pendente de categorização — ex.: importada).
 - Sinal: `amount` é assinado do ponto de vista de `account_id` (saída negativa).
   Transferência: uma linha com `transfer_account_id`; a conta destino recebe `-amount`.
+- Saldo exibido (`account_balances`) considera só transações com `date <= hoje`;
+  datas futuras vão para `future` e aparecem como "lançamentos futuros" (não
+  somam no saldo nem no patrimônio; `net_worth` sem `as_of` usa hoje).
 - Fim de mês em filtros usa a string `AAAA-MM-31` (comparação lexicográfica) — não
   converter para datas reais.
 - Novo endpoint → registrar o blueprint em `api/__init__.py` **e** cobrir em testes.

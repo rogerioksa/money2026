@@ -30,13 +30,17 @@ linhas órfãs a ele (`_seed_profiles`).
 
 ## Sinal e saldo
 
-`amount` é assinado do ponto de vista de `account_id`. O saldo de uma conta é:
+`amount` é assinado do ponto de vista de `account_id`. O saldo exibido de uma
+conta considera apenas transações até **hoje**:
 
 ```
 initial_balance
-  + SUM(amount WHERE account_id = conta)
-  + SUM(-amount WHERE transfer_account_id = conta)
+  + SUM(amount WHERE account_id = conta AND date <= hoje)
+  + SUM(-amount WHERE transfer_account_id = conta AND date <= hoje)
 ```
+
+Transações com `date > hoje` não entram no saldo; o repository as expõe em
+`future` (`account_balances`) para a interface mostrar como lançamentos futuros.
 
 ## Migração
 

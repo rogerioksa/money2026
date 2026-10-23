@@ -9,6 +9,7 @@ import threading
 
 from flask import Flask, g, jsonify, redirect, request, session
 
+from money99 import __version__
 from money99.data_path import _resource_base, db_path, secret_key
 
 
@@ -76,7 +77,7 @@ def create_app(database_path: str | None = None) -> Flask:
 
         if session.get("user") is not None:
             return redirect("/")
-        return render_template("login.html")
+        return render_template("login.html", version=__version__)
 
     @app.get("/")
     def index():
@@ -176,4 +177,5 @@ def run_webview() -> None:
             deadline -= 1
 
     webview.create_window("Money 2026", url)
-    webview.start(debug=not getattr(sys, "frozen", False))
+    icon = _resource_base() / "web" / "static" / "img" / "icon.ico"
+    webview.start(debug=not getattr(sys, "frozen", False), icon=str(icon))

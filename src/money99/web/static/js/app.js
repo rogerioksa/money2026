@@ -203,10 +203,6 @@ function closeReport() {
   overlay.querySelector("iframe").src = "about:blank";
 }
 
-document.addEventListener("keydown", (ev) => {
-  if (ev.key === "Escape") closeReport();
-});
-
 function toast(message, isError = false) {
   let el = document.getElementById("toast");
   if (!el) {
@@ -221,6 +217,112 @@ function toast(message, isError = false) {
   el._timer = setTimeout(() => { el.style.display = "none"; }, 3000);
 }
 
+function focusFirstInput(root = document) {
+  const field = root.querySelector(
+    'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])',
+  );
+  if (field) {
+    requestAnimationFrame(() => field.focus());
+  }
+}
+
+function confirmAction(message) {
+  return window.confirm(message);
+}
+
+function setSubmitState(form, isBusy, label = "Salvar") {
+  const submit = form.querySelector('button[type="submit"]');
+  if (!submit) return;
+  submit.disabled = isBusy;
+  submit.dataset.defaultLabel = submit.dataset.defaultLabel || submit.textContent;
+  submit.textContent = isBusy ? `${label}...` : submit.dataset.defaultLabel;
+}
+
+function applyScreenShortcut(ev) {
+  const active = ev.target instanceof HTMLElement ? ev.target : null;
+  const isTextField = active && (active.matches("input, select, textarea") || active.isContentEditable);
+
+  if (isTextField) {
+    return;
+  }
+
+  const key = ev.key.toLowerCase();
+  const route = location.hash || "#/painel";
+
+  if (key === "n") {
+    ev.preventDefault();
+    if (route === "#/contas") {
+      document.querySelector('#account-form [name="name"]')?.focus();
+      return;
+    }
+    if (route === "#/extrato") {
+      document.querySelector('#txn-form [name="date"]')?.focus();
+      return;
+    }
+    if (route === "#/orcamento") {
+      document.querySelector('#budget-form [name="category_id"]')?.focus();
+      return;
+    }
+    if (route === "#/config") {
+      document.querySelector('#profile-form [name="name"]')?.focus();
+    }
+    return;
+  }
+
+  if (key === "e" && route === "#/extrato") {
+    ev.preventDefault();
+    const firstEdit = document.querySelector('tr[data-id] [data-action="edit"]');
+    if (firstEdit) {
+      firstEdit.click();
+    }
+  }
+}
+
+document.addEventListener("keydown", (ev) => {
+  const active = ev.target instanceof HTMLElement ? ev.target : null;
+  const form = active ? active.closest("form") : null;
+
+  if ((ev.ctrlKey || ev.metaKey) && ev.key === "Enter") {
+    if (form) {
+      ev.preventDefault();
+      form.requestSubmit();
+      return;
+    }
+    const saveButton = active ? active.closest("[data-action='save']") : null;
+    if (saveButton) {
+      ev.preventDefault();
+      saveButton.click();
+    }
+    return;
+  }
+
+  if (ev.key === "Escape") {
+    const overlay = document.getElementById("report-overlay");
+    if (overlay && !overlay.hidden) {
+      ev.preventDefault();
+      closeReport();
+      return;
+    }
+    const cancelButton = active ? active.closest("[data-action='cancel']") : null;
+    if (cancelButton) {
+      ev.preventDefault();
+      cancelButton.click();
+      return;
+    }
+    const editingRow = active ? active.closest("tr.editing") : null;
+    if (editingRow) {
+      const cancel = editingRow.querySelector('[data-action="cancel"]');
+      if (cancel) {
+        ev.preventDefault();
+        cancel.click();
+      }
+    }
+    return;
+  }
+
+  applyScreenShortcut(ev);
+});
+
 // ---------- vista: contas ----------
 
 async function viewAccounts() {
@@ -232,6 +334,8 @@ async function viewAccounts() {
         <td data-field="name">${esc(a.name)}</td>
         <td data-field="type">${esc(accountTypeLabel(a.type))}</td>
         <td class="num ${a.balance < 0 ? "neg" : ""}">${fmtMinor(a.balance)}</td>
+        <td class="num ${a.future < 0 ? "neg" : a.future > 0 ? "pos" : "muted"}"
+            title="Lançamentos futuros">${a.future ? fmtMinor(a.future) : "—"}</td>
         <td class="num">${a.credit_limit > 0 ? fmtMinor(a.credit_limit) : "—"}</td>
         <td class="cell-actions">
           <button class="btn-link" data-action="edit">Editar</button>
@@ -246,8 +350,9 @@ async function viewAccounts() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Nome</th><th>Tipo</th><th class="num">Saldo</th>
+          <th class="num" title="Lançamentos futuros">Futuros</th>
           <th class="num">Limite</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="5" class="placeholder">Nenhuma conta. Crie a primeira abaixo.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="6" class="placeholder">Nenhuma conta. Crie a primeira abaixo.</td></tr>'}</tbody>
       </table>
     </div>
     <h3>Nova conta</h3>
@@ -267,11 +372,14 @@ async function viewAccounts() {
       <button type="submit">Criar</button>
     </form>`;
 
+  focusFirstInput(document.getElementById("account-form"));
+
   document.getElementById("account-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const form = ev.target;
     const initial = parseBRL(form.initial_balance.value) ?? 0;
     const limit = parseBRL(form.credit_limit.value) ?? 0;
+    setSubmitState(form, true, "Criando");
     try {
       await api("/api/accounts", {
         method: "POST",
@@ -284,8 +392,12 @@ async function viewAccounts() {
       });
       await refreshCache();
       viewAccounts();
+      toast("Conta criada!");
     } catch (err) {
       toast(err.message, true);
+    } finally {
+      setSubmitState(form, false, "Criando");
+      focusFirstInput(document.getElementById("account-form"));
     }
   });
 
@@ -326,6 +438,7 @@ async function viewTransactions() {
   if (filters.end) query.set("end", filters.end);
   const txns = await api(`/api/transactions?${query}`);
   const business = currentProfile()?.kind === "business";
+  const today = todayISO();
   const reconciliation = accountId
     ? await api(`/api/accounts/${accountId}/reconciliation`)
     : null;
@@ -342,7 +455,7 @@ async function viewTransactions() {
 
   const rows = txns.map((t) => `
     <tr data-id="${t.id}">
-      <td class="cell-date">${fmtDate(t.date)}</td>
+      <td class="cell-date">${fmtDate(t.date)}${t.date > today ? ' <span class="badge future">futuro</span>' : ""}</td>
       <td class="cell-desc">${esc(t.description)}</td>
       <td class="cell-account">${esc(accountName(t.account_id))}</td>
       <td class="cell-cat">${catLabel(t)}</td>
@@ -368,14 +481,18 @@ async function viewTransactions() {
   const initialTotal = accountId
     ? (cache.accounts.find((a) => a.id === accountId)?.initial_balance || 0)
     : cache.accounts.reduce((sum, a) => sum + (a.initial_balance || 0), 0);
-  const movementTotal = txns.reduce((sum, t) => {
+  const signedMovement = (t) => {
     if (accountId) {
-      if (t.account_id === accountId) return sum + t.amount;
-      if (t.transfer_account_id === accountId) return sum - t.amount;
-      return sum;
+      if (t.account_id === accountId) return t.amount;
+      if (t.transfer_account_id === accountId) return -t.amount;
+      return 0;
     }
-    return t.transfer_account_id != null ? sum : sum + t.amount;
-  }, 0);
+    return t.transfer_account_id != null ? 0 : t.amount;
+  };
+  const currentTxns = txns.filter((t) => t.date <= today);
+  const futureTxns = txns.filter((t) => t.date > today);
+  const movementTotal = currentTxns.reduce((sum, t) => sum + signedMovement(t), 0);
+  const futureTotal = futureTxns.reduce((sum, t) => sum + signedMovement(t), 0);
   const finalBalance = initialTotal + movementTotal;
 
   app.innerHTML = `
@@ -404,10 +521,12 @@ async function viewTransactions() {
     </div>
     <div class="txn-footer">
       <div class="txn-balance">
-        ${accountId ? "Saldo final" : "Total filtrado"}: <b>${fmtMinor(finalBalance)}</b>
+        ${accountId ? "Saldo até hoje" : "Total filtrado até hoje"}: <b>${fmtMinor(finalBalance)}</b>
         <span class="txn-balance-detail">
           saldo inicial ${fmtMinor(initialTotal)} + movimentos ${fmtMinor(movementTotal)}
         </span>
+        ${futureTxns.length ? `<span class="txn-future">Lançamentos futuros:
+          <b>${fmtMinor(futureTotal)}</b> (${futureTxns.length})</span>` : ""}
       </div>
       <form id="txn-form" class="form-row form-flex txn-form-new">
         <label>Data <input type="date" name="date" value="${todayISO()}" required></label>
@@ -432,11 +551,14 @@ async function viewTransactions() {
 
   wireCategorySelect(document.getElementById("txn-form").category_id);
 
+  focusFirstInput(document.getElementById("txn-form"));
+
   document.getElementById("txn-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const form = ev.target;
     const amount = parseBRL(form.amount.value);
     if (amount === null) { toast("Valor inválido", true); return; }
+    setSubmitState(form, true, "Lançando");
     try {
       await api("/api/transactions", {
         method: "POST",
@@ -454,6 +576,9 @@ async function viewTransactions() {
       toast("Lançado!");
     } catch (err) {
       toast(err.message, true);
+    } finally {
+      setSubmitState(form, false, "Lançando");
+      focusFirstInput(document.getElementById("txn-form"));
     }
   });
 
@@ -493,10 +618,15 @@ function startInlineTxnDelete(tr, id) {
     </td>`;
   tr.querySelector('[data-action="cancel"]').addEventListener("click", () => navigate());
   tr.querySelector('[data-action="confirm"]').addEventListener("click", async () => {
+    if (!confirmAction("Excluir esta transação? Esta ação não pode ser desfeita.")) {
+      navigate();
+      return;
+    }
     try {
       await api(`/api/transactions/${id}`, { method: "DELETE" });
       await refreshCache();
       navigate();
+      toast("Transação excluída");
     } catch (err) {
       toast(err.message, true);
       navigate();
@@ -527,11 +657,12 @@ function startInlineEdit(tr, txn) {
     <td class="num cell-amount"><input data-field="amount" class="num" value="${fmtMinor(txn.amount)}"></td>
     <td class="cell-recon"><input type="checkbox" data-field="reconciled" ${txn.reconciled ? "checked" : ""}></td>
     <td class="cell-actions">
-      <button class="btn-link" data-action="save">Salvar</button>
-      <button class="btn-link" data-action="cancel">Cancelar</button>
+      <button class="btn-link" data-action="save" title="Ctrl+Enter salva · Esc cancela">Salvar</button>
+      <button class="btn-link" data-action="cancel" title="Esc cancela">Cancelar</button>
     </td>`;
 
   const catSelect = tr.querySelector('[data-field="category_id"]');
+  focusFirstInput(tr);
   if (catSelect) wireCategorySelect(catSelect);
 
   tr.querySelector('[data-action="cancel"]').addEventListener("click", () => navigate());
@@ -574,9 +705,10 @@ function startInlineAccountEdit(tr, a) {
     <td class="num"><input data-field="initial_balance" class="num" value="${fmtMinor(a.initial_balance)}"></td>
     <td class="num"><input data-field="credit_limit" class="num" value="${fmtMinor(a.credit_limit)}"></td>
     <td class="cell-actions">
-      <button class="btn-link" data-action="save">Salvar</button>
-      <button class="btn-link" data-action="cancel">Cancelar</button>
+      <button class="btn-link" data-action="save" title="Ctrl+Enter salva · Esc cancela">Salvar</button>
+      <button class="btn-link" data-action="cancel" title="Esc cancela">Cancelar</button>
     </td>`;
+  focusFirstInput(tr);
   tr.querySelector('[data-action="cancel"]').addEventListener("click", () => viewAccounts());
   tr.querySelector('[data-action="save"]').addEventListener("click", async () => {
     const name = tr.querySelector('[data-field="name"]').value.trim();
@@ -620,10 +752,15 @@ function startInlineAccountDelete(tr, id) {
     </td>`;
   tr.querySelector('[data-action="cancel"]').addEventListener("click", () => viewAccounts());
   tr.querySelector('[data-action="confirm"]').addEventListener("click", async () => {
+    if (!confirmAction("Excluir esta conta? Isso também exige que ela não tenha transações vinculadas.")) {
+      viewAccounts();
+      return;
+    }
     try {
       await api(`/api/accounts/${id}`, { method: "DELETE" });
       await refreshCache();
       viewAccounts();
+      toast("Conta excluída");
     } catch (err) {
       toast(err.message, true);
       viewAccounts();
@@ -716,6 +853,9 @@ async function viewBudget() {
         <td class="bar-cell">
           <div class="bar"><div class="bar-fill ${over ? "over" : ""}" style="width:${pct}%"></div></div>
         </td>
+        <td class="cell-actions">
+          <button class="btn-link" data-action="edit">Editar</button>
+        </td>
       </tr>`;
   }).join("");
 
@@ -735,11 +875,11 @@ async function viewBudget() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Categoria</th><th class="num">Planejado</th><th class="num">Realizado</th>
-          <th class="num">Saldo</th><th></th></tr></thead>
-        <tbody>${body || '<tr><td colspan="5" class="placeholder">Sem orçamento ou gastos neste mês.</td></tr>'}</tbody>
+          <th class="num">Saldo</th><th></th><th></th></tr></thead>
+        <tbody>${body || '<tr><td colspan="6" class="placeholder">Sem orçamento ou gastos neste mês.</td></tr>'}</tbody>
       </table>
     </div>
-    <h3>Definir valor planejado</h3>
+    <h3>Adicionar ou atualizar valor planejado</h3>
     <form id="budget-form" class="form-row form-flex">
       <label>Categoria <select name="category_id">${selectOptions(expenseCats)}</select></label>
       <label>Planejado <input name="planned" value="0,00" class="num"></label>
@@ -751,6 +891,8 @@ async function viewBudget() {
     const f = ev.target;
     location.hash = `#/orcamento?ano=${f.year.value}&mes=${f.month.value}`;
   });
+
+  focusFirstInput(document.getElementById("budget-form"));
 
   document.getElementById("budget-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -768,6 +910,42 @@ async function viewBudget() {
       toast("Orçamento salvo!");
     } catch (err) { toast(err.message, true); }
   });
+
+  app.querySelectorAll("tr[data-cat]").forEach((tr) => {
+    const id = Number(tr.dataset.cat);
+    tr.querySelector('[data-action="edit"]').addEventListener("click", () => {
+      startInlineBudgetEdit(tr, rows.find((r) => r.category_id === id), year, month);
+    });
+  });
+}
+
+function startInlineBudgetEdit(tr, row, year, month) {
+  if (!row) { navigate(); return; }
+  tr.classList.add("editing");
+  tr.innerHTML = `
+    <td>${esc(row.category)}</td>
+    <td class="num"><input data-field="planned" class="num" value="${fmtMinor(row.planned)}"></td>
+    <td class="num">${fmtMinor(row.actual)}</td>
+    <td class="num ${row.remaining < 0 ? "neg" : "pos"}">${fmtMinor(row.remaining)}</td>
+    <td class="bar-cell"></td>
+    <td class="cell-actions">
+      <button class="btn-link" data-action="save" title="Ctrl+Enter salva · Esc cancela">Salvar</button>
+      <button class="btn-link" data-action="cancel" title="Esc cancela">Cancelar</button>
+    </td>`;
+  focusFirstInput(tr);
+  tr.querySelector('[data-action="cancel"]').addEventListener("click", () => navigate());
+  tr.querySelector('[data-action="save"]').addEventListener("click", async () => {
+    const planned = parseBRL(tr.querySelector('[data-field="planned"]').value);
+    if (planned === null || planned < 0) { toast("Valor inválido", true); return; }
+    try {
+      await api("/api/budgets", {
+        method: "PUT",
+        body: JSON.stringify({ year, month, category_id: row.category_id, planned }),
+      });
+      await navigate();
+      toast("Orçamento salvo!");
+    } catch (err) { toast(err.message, true); }
+  });
 }
 
 // ---------- vista: painel (dashboard) ----------
@@ -780,6 +958,8 @@ async function viewDashboard() {
       <td>${esc(a.name)}</td>
       <td>${esc(accountTypeLabel(a.type))}</td>
       <td class="num ${a.balance < 0 ? "neg" : ""}">${fmtMinor(a.balance)}</td>
+      <td class="num ${a.future < 0 ? "neg" : a.future > 0 ? "pos" : "muted"}"
+          title="Lançamentos futuros">${a.future ? fmtMinor(a.future) : "—"}</td>
       <td class="num">${a.credit_limit > 0 ? fmtMinor(a.credit_limit) : "—"}</td>
       <td class="num ${a.available < 0 ? "neg" : ""}">${fmtMinor(a.available)}</td>
     </tr>`).join("");
@@ -820,8 +1000,9 @@ async function viewDashboard() {
     <h3>Saldos das contas</h3>
     <table class="grid">
       <thead><tr><th>Conta</th><th>Tipo</th><th class="num">Saldo</th>
+        <th class="num" title="Lançamentos futuros">Futuros</th>
         <th class="num">Limite</th><th class="num">Disponível</th></tr></thead>
-      <tbody>${accountRows || '<tr><td colspan="5" class="placeholder">Sem contas.</td></tr>'}</tbody>
+      <tbody>${accountRows || '<tr><td colspan="6" class="placeholder">Sem contas.</td></tr>'}</tbody>
     </table>`;
 }
 
@@ -1508,10 +1689,15 @@ function startInlineProfileDelete(tr, profile, id) {
     </td>`;
   tr.querySelector('[data-action="cancel"]').addEventListener("click", () => viewSettings());
   tr.querySelector('[data-action="confirm"]').addEventListener("click", async () => {
+    if (!confirmAction(`Excluir o perfil "${profile.name}"? Isso remove o perfil e os dados vinculados.`)) {
+      viewSettings();
+      return;
+    }
     try {
       await api(`/api/profiles/${id}`, { method: "DELETE" });
       await refreshCache();
       viewSettings();
+      toast("Perfil excluído");
     } catch (err) {
       toast(err.message, true);
       viewSettings();
@@ -1544,6 +1730,7 @@ async function navigate() {
     await refreshCache();
     wireProfileSelect();
     await handler();
+    requestAnimationFrame(() => focusFirstInput(app));
   } catch (err) {
     app.innerHTML = `<p class="error">Erro: ${esc(err.message)}</p>`;
   }

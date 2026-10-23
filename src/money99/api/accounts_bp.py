@@ -11,6 +11,7 @@ bp = Blueprint("accounts", __name__, url_prefix="/api/accounts")
 
 
 def _serialize(repo, account: Account) -> dict:
+    balances = repo.account_balances(account.id)
     return {
         "id": account.id,
         "name": account.name,
@@ -18,7 +19,8 @@ def _serialize(repo, account: Account) -> dict:
         "initial_balance": account.initial_balance,
         "active": account.active,
         "credit_limit": account.credit_limit,
-        "balance": repo.account_balance(account.id),
+        "balance": balances["balance"],
+        "future": balances["future"],
     }
 
 
@@ -94,10 +96,10 @@ def delete_account(account_id: int):
 def account_balance(account_id: int):
     repo = get_repo()
     try:
-        balance = repo.account_balance(account_id)
+        balances = repo.account_balances(account_id)
     except LookupError as exc:
         return error(str(exc), 404)
-    return jsonify({"balance": balance})
+    return jsonify(balances)
 
 
 @bp.get("/<int:account_id>/reconciliation")

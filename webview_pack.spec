@@ -24,6 +24,7 @@ exe = EXE(
     a.datas,
     [],
     name="Money2026",
+    icon="src\\money99\\web\\static\\img\\icon.ico",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

@@ -67,18 +67,22 @@ Mensal das Receitas Brutas + controle mensal) em HTML para impressão/PDF. Sem
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/accounts[?active=1]` | Lista contas com `balance` e `credit_limit`. |
+| GET | `/api/accounts[?active=1]` | Lista contas com `balance`, `future` e `credit_limit`. |
 | POST | `/api/accounts` | Cria conta `{name, type, initial_balance, credit_limit}`. |
 | GET | `/api/accounts/<id>` | Detalhe. |
 | PUT | `/api/accounts/<id>` | Atualiza. |
 | DELETE | `/api/accounts/<id>` | Exclui (400 se tiver transações). |
-| GET | `/api/accounts/<id>/balance` | `{balance}`. |
+| GET | `/api/accounts/<id>/balance` | `{balance, future}` (saldo até hoje + lançamentos futuros). |
 | GET | `/api/accounts/<id>/reconciliation` | Resumo de conciliação. |
 
 `type`: `bank|credit|cash|asset|investment`. `credit_limit` (centavos) é o
 limite de crédito/cheque especial; no painel, `available = balance + credit_limit`
 para toda conta com limite. Cartões entram como passivo; contas bancárias com
 limite continuam compondo o saldo em contas.
+
+`balance` considera somente transações até a data atual; `future` é o efeito
+líquido das transações com data posterior (transferências entram com sinal
+invertido na conta de destino) e não é somado ao saldo.
 
 ## Categorias — `/api/categories`
 
@@ -116,8 +120,10 @@ documento fiscal emitido — venda para PJ; usado nas linhas do Caderno do MEI).
 | GET | `/api/reports/cash-flow?start&end` | Entradas/saídas por mês. |
 | GET | `/api/reports/dashboard` | Saldos de todas as contas + resumo de crédito. |
 
-`dashboard` retorna `accounts`, `assets_total`, `net_worth` e `credit`
-(`limit_total`, `used_total`, `available_total`, `accounts`).
+`dashboard` retorna `accounts` (cada uma com `balance` até hoje, `future`,
+`credit_limit` e `available`), `assets_total`, `net_worth` e `credit`
+(`limit_total`, `used_total`, `available_total`, `accounts`). Transações futuras
+não entram nos saldos nem no patrimônio; aparecem em `future`.
 
 `GET /reports/print?year=` renderiza o relatório consolidado em HTML pronto
 para impressão (título, gastos por categoria, patrimônio, fluxo de caixa).

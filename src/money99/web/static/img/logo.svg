@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Money 2026">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#256b45"/>
+      <stop offset="1" stop-color="#17452c"/>
+    </linearGradient>
+  </defs>
+  <rect x="24" y="24" width="976" height="976" rx="220" fill="url(#bg)"/>
+  <path d="M270 720V330L512 540L754 330V720" fill="none" stroke="#ffffff"
+        stroke-width="96" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="800" cy="216" r="104" fill="#e0b44a"/>
+  <circle cx="800" cy="216" r="70" fill="none" stroke="#f6dfa0" stroke-width="16"/>
+  <path d="M760 186L840 246" stroke="#f6dfa0" stroke-width="16" stroke-linecap="round"/>
+</svg>

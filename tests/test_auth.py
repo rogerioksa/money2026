@@ -16,9 +16,12 @@ def test_guard_blocks_api_unauthorized(anon_client):
 
 
 def test_login_page_public(anon_client):
+    from money99 import __version__
+
     res = anon_client.get("/login")
     assert res.status_code == 200
     assert b"Money 2026" in res.data
+    assert f"Versão {__version__}".encode() in res.data
 
 
 def test_status_before_setup(anon_client):

@@ -39,6 +39,22 @@ def test_accounts_crud(client):
     assert client.get("/api/accounts").get_json() == []
 
 
+def test_account_balance_ignores_future_transactions(client):
+    account = create_account(client)
+    cat = expense_category(client)
+    res = client.post("/api/transactions", json={
+        "date": "2200-01-01", "description": "Futuro", "account_id": account["id"],
+        "amount": -1234, "category_id": cat["id"],
+    })
+    assert res.status_code == 201
+
+    body = client.get(f"/api/accounts/{account['id']}/balance").get_json()
+    assert body == {"balance": 100000, "future": -1234}
+    listed = client.get("/api/accounts").get_json()[0]
+    assert listed["balance"] == 100000
+    assert listed["future"] == -1234
+
+
 def test_account_validation_errors(client):
     res = client.post("/api/accounts", json={"name": "  "})
     assert res.status_code == 400

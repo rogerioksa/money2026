@@ -4,10 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Money 2026 — Acesso</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" sizes="any">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="login-body">
   <main class="login-card">
+    <img class="login-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="Money 2026">
     <h1>Money 2026</h1>
     <p id="login-hint" class="placeholder">Carregando…</p>
     <form id="login-form" class="login-form" hidden>
@@ -16,6 +19,7 @@
       <button type="submit" id="login-submit">Entrar</button>
     </form>
     <p id="login-error" class="error" hidden></p>
+    <p class="login-version">Versão {{ version }}</p>
   </main>
   <script>
     "use strict";

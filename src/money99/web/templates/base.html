@@ -4,11 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Money 2026</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon.png') }}">
+  <link rel="icon" href="{{ url_for('static', filename='img/favicon.ico') }}" sizes="any">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
   <header class="app-header">
-    <h1>Money 2026</h1>
+    <h1><img class="brand-logo" src="{{ url_for('static', filename='img/logo.svg') }}" alt="">Money 2026</h1>
     <nav id="main-nav">
       <a href="#/painel">Painel</a>
       <a href="#/contas">Contas</a>
@@ -23,6 +25,7 @@
         <select id="profile-select"></select>
       </label>
     </span>
+    <small class="header-shortcuts" title="Atalhos: N novo · E editar · Ctrl+Enter salva">N novo · E editar · Ctrl+Enter</small>
     <a href="#/config" id="settings-link" class="header-settings" title="Configurações">Config</a>
     <button id="logout-btn" class="btn-link header-logout" type="button">Sair</button>
   </header>

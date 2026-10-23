@@ -69,6 +69,29 @@ def test_net_worth_as_of(tmp_path):
     assert worth["total"] == 100000 - 6000  # exclui salário de abril
 
 
+def test_net_worth_ignores_future_transactions(tmp_path):
+    repo, account, cats = seed(setup_db(tmp_path))
+    repo.add_transaction(Transaction(
+        date="2200-01-01", account_id=account.id, amount=-9000,
+        category_id=cats["Alimentação"].id,
+    ))
+    assert net_worth(repo)["total"] == 144000
+    assert net_worth(repo, as_of="2200-12-31")["total"] == 144000 - 9000
+
+
+def test_dashboard_separates_future_entries(tmp_path):
+    repo, account, cats = seed(setup_db(tmp_path))
+    repo.add_transaction(Transaction(
+        date="2200-01-01", account_id=account.id, amount=-700,
+        category_id=cats["Alimentação"].id,
+    ))
+    data = dashboard(repo)
+    entry = next(a for a in data["accounts"] if a["account_id"] == account.id)
+    assert entry["balance"] == 144000
+    assert entry["future"] == -700
+    assert data["assets_total"] == 144000
+
+
 def test_cash_flow(tmp_path):
     repo, _, _ = seed(setup_db(tmp_path))
     flow = cash_flow(repo, "2026-01-01", "2026-12-31")

@@ -56,6 +56,24 @@ def test_transfer_moves_balance(tmp_path):
     assert repo.account_balance(savings.id) == 20000
 
 
+def test_future_transactions_not_in_balance(tmp_path):
+    engine, session = setup_db(tmp_path)
+    repo = Repository(session)
+    checking = repo.add_account(Account(name="Conta", type="bank", initial_balance=50000))
+    savings = repo.add_account(Account(name="Poupança", type="bank", initial_balance=0))
+
+    repo.add_transaction(Transaction(
+        date="2200-01-01", account_id=checking.id, amount=-7000,
+        transfer_account_id=savings.id,
+    ))
+
+    balances = repo.account_balances(checking.id)
+    assert balances == {"balance": 50000, "future": -7000}
+    assert repo.account_balance(checking.id) == 50000
+    assert repo.account_future_balance(checking.id) == -7000
+    assert repo.account_balances(savings.id) == {"balance": 0, "future": 7000}
+
+
 def test_delete_account_with_transactions_rejected(tmp_path):
     engine, session = setup_db(tmp_path)
     repo = Repository(session)

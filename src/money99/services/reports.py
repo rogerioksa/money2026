@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from money99.db.repository import Repository
 
 
@@ -29,13 +31,17 @@ def spending_by_category(
 
 
 def net_worth(repo: Repository, as_of: str | None = None) -> dict:
-    """Patrimônio líquido na data: saldos iniciais + movimentos até `as_of`."""
+    """Patrimônio líquido na data: saldos iniciais + movimentos até `as_of`.
+
+    Sem `as_of`, considera somente transações até hoje (futuras ficam de fora).
+    """
+    cutoff = as_of or date.today().isoformat()
     total = 0
     accounts = []
     for account in repo.list_accounts():
         balance = account.initial_balance
         for txn in repo.list_transactions(account_id=account.id):
-            if as_of and txn.date > as_of:
+            if txn.date > cutoff:
                 continue
             if txn.account_id == account.id:
                 balance += txn.amount
@@ -69,6 +75,8 @@ def cash_flow(repo: Repository, start: str, end: str) -> list[dict]:
 def dashboard(repo: Repository) -> dict:
     """Painel geral: saldos de todas as contas + resumo de crédito.
 
+    Saldos consideram apenas transações até hoje; `future` traz o efeito líquido
+    das transações futuras (não somado ao saldo).
     Crédito: `used` é o valor já utilizado no cartão (saldo negativo vira uso).
     `available` (por conta) = saldo + limite, exibido para todas as contas.
     O resumo de crédito soma todas as contas com `credit_limit > 0` (inclusive
@@ -84,12 +92,14 @@ def dashboard(repo: Repository) -> dict:
         "accounts": [],
     }
     for account in repo.list_accounts():
-        balance = repo.account_balance(account.id)
+        balances = repo.account_balances(account.id)
+        balance = balances["balance"]
         entry = {
             "account_id": account.id,
             "name": account.name,
             "type": account.type.value,
             "balance": balance,
+            "future": balances["future"],
             "credit_limit": account.credit_limit,
             "available": balance + account.credit_limit,
         }

@@ -12,6 +12,7 @@
       font-size: 12px;
     }
     h1 { font-size: 20px; margin: 0 0 4px; }
+    .brand-logo { width: 42px; height: 42px; display: block; margin-bottom: 8px; }
     h2 { font-size: 15px; margin: 22px 0 6px; border-bottom: 1px solid #ccc; padding-bottom: 3px; }
     .sub { color: #666; margin: 0 0 12px; }
     table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
@@ -26,7 +27,8 @@
     .toolbar button { font-size: 13px; padding: 6px 14px; cursor: pointer; }
     @media print {
       .toolbar { display: none; }
-      body { margin: 12mm; }
+      body { margin: 0.5cm; }
+      @page { margin: 0.5cm; }
     }
   </style>
 </head>
@@ -35,6 +37,7 @@
     <button onclick="window.print()">Salvar como PDF / Imprimir</button>
   </div>
 
+  <img class="brand-logo" src="{{ url_for('static', filename='img/logo.png') }}" alt="">
   <h1>Money 2026 — Relatório{% if year %} {{ year }}{% endif %}</h1>
   <p class="sub">Emitido em {{ generated_at }}</p>
 

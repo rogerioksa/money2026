@@ -44,3 +44,17 @@ webview_pack.spec                 # build do Money2026.exe
 - Banco: `data/money99.sqlite` (ao lado do cwd/exe; fallback `%APPDATA%/Money99`).
 - Exportações: `data/exports/`.
 - Backups: `data/backups/` (criados em Configurações → Banco de dados).
+
+## Operação e garantia de qualidade
+
+O sistema foi evoluído com práticas de operação e confiabilidade típicas de
+ambientes críticos:
+
+- foco inicial em campos de entrada para reduzir passos e erros em cadastros
+- atalhos de teclado para navegação e edição rápida de registros
+- confirmação antes de exclusões e indicações visuais de estado de gravação
+- melhoria de acessibilidade com foco visível em botões, inputs e seleções
+- validação de build via smoke test do executável gerado por PyInstaller
+
+Essas melhorias têm como objetivo reduzir erro humano, aumentar velocidade de uso
+em tarefas repetitivas e manter a solução estável em operação local.

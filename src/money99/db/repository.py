@@ -7,7 +7,9 @@ consultas de contas/categorias/transações/orçamentos fiquem restritas ao perf
 
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from datetime import date
+
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from money99.db.models import (
@@ -166,19 +168,40 @@ class Repository:
             raise ValueError("conta possui transações; desative em vez de excluir")
         self.session.delete(row)
 
-    def account_balance(self, account_id: int) -> int:
+    def account_balances(self, account_id: int, *, as_of: str | None = None) -> dict:
+        """Saldo até `as_of` (padrão: hoje) e lançamentos futuros.
+
+        `balance` considera apenas transações com data <= hoje; `future` é o
+        efeito líquido das transações com data posterior (transferências entram
+        com o sinal invertido na conta de destino).
+        """
         account = self.get_account(account_id)
-        outgoing = self.session.scalar(
-            select(func.coalesce(func.sum(TransactionRow.amount), 0)).where(
-                TransactionRow.account_id == account_id
-            )
+        cutoff = as_of or date.today().isoformat()
+
+        def totals(column) -> tuple[int, int]:
+            current = func.coalesce(func.sum(
+                case((TransactionRow.date <= cutoff, TransactionRow.amount), else_=0)
+            ), 0)
+            future = func.coalesce(func.sum(
+                case((TransactionRow.date > cutoff, TransactionRow.amount), else_=0)
+            ), 0)
+            row = self.session.execute(select(current, future).where(column)).one()
+            return int(row[0] or 0), int(row[1] or 0)
+
+        outgoing_current, outgoing_future = totals(TransactionRow.account_id == account_id)
+        incoming_current, incoming_future = totals(
+            TransactionRow.transfer_account_id == account_id
         )
-        incoming = self.session.scalar(
-            select(func.coalesce(func.sum(-TransactionRow.amount), 0)).where(
-                TransactionRow.transfer_account_id == account_id
-            )
-        )
-        return account.initial_balance + outgoing + incoming
+        return {
+            "balance": account.initial_balance + outgoing_current - incoming_current,
+            "future": outgoing_future - incoming_future,
+        }
+
+    def account_balance(self, account_id: int, *, as_of: str | None = None) -> int:
+        return self.account_balances(account_id, as_of=as_of)["balance"]
+
+    def account_future_balance(self, account_id: int, *, as_of: str | None = None) -> int:
+        return self.account_balances(account_id, as_of=as_of)["future"]
 
     # --- categorias ---
 
