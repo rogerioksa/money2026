@@ -132,6 +132,25 @@ function categoryName(id) {
   return c ? c.name : "?";
 }
 
+const THEME_KEY = "money99-theme";
+const THEME_OPTIONS = [
+  { value: "forest", label: "Floresta" },
+  { value: "midnight", label: "Midnight" },
+  { value: "sunset", label: "Sunset" },
+  { value: "deep-ocean", label: "Deep Ocean" },
+];
+
+function applyTheme(theme = "forest") {
+  const safeTheme = THEME_OPTIONS.some((item) => item.value === theme) ? theme : "forest";
+  document.body.dataset.theme = safeTheme;
+  localStorage.setItem(THEME_KEY, safeTheme);
+}
+
+function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY) || "forest";
+  applyTheme(saved);
+}
+
 function renderProfileSelect() {
   const sel = document.getElementById("profile-select");
   if (!sel) return;
@@ -536,6 +555,19 @@ async function viewTransactions() {
         <button type="button" class="btn-link" id="reconcile-visible-btn">Conciliar visíveis</button>
         <button type="button" class="btn-link" id="unreconcile-visible-btn">Desfazer visíveis</button>
       </div>
+      <form id="recon-adjust-form" class="recon-adjust-form">
+        <label>Data
+          <input type="date" name="date" value="${todayISO()}" required>
+        </label>
+        <label>Ajuste
+          <input name="amount" class="num" placeholder="0,00" required>
+        </label>
+        <label>Descrição
+          <input name="description" maxlength="240" value="Ajuste de conciliação">
+        </label>
+        <button type="button" class="btn-link" id="recon-fill-diff-btn">Usar diferença atual</button>
+        <button type="submit">Lançar ajuste</button>
+      </form>
     </div>` : "";
 
   const currentTxns = txns.filter((t) => t.date <= today);
@@ -642,6 +674,63 @@ async function viewTransactions() {
   }
   if (unreconcileVisibleBtn) {
     unreconcileVisibleBtn.addEventListener("click", () => reconcileVisible(false));
+  }
+
+  const reconAdjustForm = document.getElementById("recon-adjust-form");
+  if (reconAdjustForm && accountId) {
+    const fillDiffBtn = document.getElementById("recon-fill-diff-btn");
+    const amountInput = reconAdjustForm.querySelector('[name="amount"]');
+    const toAmountInput = (minor) => {
+      const abs = Math.abs(minor);
+      const integer = Math.floor(abs / 100);
+      const cents = String(abs % 100).padStart(2, "0");
+      const sign = minor < 0 ? "-" : "";
+      return `${sign}${integer},${cents}`;
+    };
+
+    if (fillDiffBtn && amountInput) {
+      fillDiffBtn.addEventListener("click", () => {
+        const diff = reconciliation?.difference || 0;
+        if (diff === 0) {
+          toast("Diferença já está zerada.");
+          return;
+        }
+        // Ajuste padrão sugerido para compensar a diferença atual.
+        amountInput.value = toAmountInput(-diff);
+        amountInput.focus();
+      });
+    }
+
+    reconAdjustForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const form = ev.target;
+      const amount = parseBRL(form.amount.value);
+      if (amount === null || amount === 0) {
+        toast("Informe um valor de ajuste diferente de zero.", true);
+        return;
+      }
+      setSubmitState(form, true, "Lançando");
+      try {
+        await api("/api/transactions", {
+          method: "POST",
+          body: JSON.stringify({
+            date: form.date.value,
+            description: form.description.value || "Ajuste de conciliação",
+            account_id: accountId,
+            amount,
+            category_id: null,
+            notes: "Ajuste manual para conciliação com extrato bancário.",
+          }),
+        });
+        await refreshCache();
+        navigate();
+        toast("Ajuste lançado no extrato.");
+      } catch (err) {
+        toast(err.message, true);
+      } finally {
+        setSubmitState(form, false, "Lançando");
+      }
+    });
   }
 
   wireCategorySelect(document.getElementById("txn-form").category_id);
@@ -1547,6 +1636,17 @@ async function viewSettings() {
       <button type="submit">Alterar senha</button>
     </form>
 
+    <h3>Visual</h3>
+    <form id="theme-form" class="form-row form-flex">
+      <label>Tema
+        <select name="theme" id="theme-select">
+          ${THEME_OPTIONS.map((option) => `<option value="${option.value}" ${document.body.dataset.theme === option.value ? "selected" : ""}>${option.label}</option>`).join("")}
+        </select>
+      </label>
+      <button type="submit">Aplicar tema</button>
+    </form>
+    <p class="theme-preview">Ajuste o visual do sistema para mais conforto em uso diário.</p>
+
     <h3>Perfis (pessoal x empresarial/MEI)</h3>
     <div class="table-wrap">
       <table class="grid">
@@ -1627,6 +1727,13 @@ async function viewSettings() {
       f.reset();
       toast("Senha alterada!");
     } catch (err) { toast(err.message, true); }
+  });
+
+  document.getElementById("theme-form").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const theme = document.getElementById("theme-select").value;
+    applyTheme(theme);
+    toast("Tema aplicado!");
   });
 
   const annualLimitField = document.querySelector('#profile-form [name="annual_limit"]');
@@ -1931,4 +2038,5 @@ if (logoutBtn) {
   });
 }
 
+initTheme();
 navigate();

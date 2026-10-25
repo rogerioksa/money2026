@@ -11,6 +11,60 @@
     --money-border: #d0d0c8;
     --money-danger: #a02020;
     --money-muted: #666666;
+    --money-surface: #ffffff;
+    --money-header: #1f5c3a;
+    --money-header-contrast: #ffffff;
+    --money-row-hover: #f8faf7;
+    --money-field-bg: #ffffff;
+    --money-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  }
+
+  body[data-theme="midnight"] {
+    --money-bg: #101827;
+    --money-fg: #e5eefb;
+    --money-accent: #7dd3fc;
+    --money-accent-soft: #11263b;
+    --money-border: #253548;
+    --money-danger: #fca5a5;
+    --money-muted: #a5b4c9;
+    --money-surface: #0f172a;
+    --money-header: #111827;
+    --money-header-contrast: #e2e8f0;
+    --money-row-hover: #162235;
+    --money-field-bg: #0b1220;
+    --money-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
+  }
+
+  body[data-theme="sunset"] {
+    --money-bg: #fef3ec;
+    --money-fg: #2f241b;
+    --money-accent: #c96b3b;
+    --money-accent-soft: #fce7dc;
+    --money-border: #e7c8b4;
+    --money-danger: #b42318;
+    --money-muted: #7a5b4c;
+    --money-surface: #fffaf6;
+    --money-header: #9a4d2d;
+    --money-header-contrast: #fff7f2;
+    --money-row-hover: #fff2ea;
+    --money-field-bg: #fffdfb;
+    --money-shadow: 0 1px 2px rgba(154, 77, 45, 0.12);
+  }
+
+  body[data-theme="deep-ocean"] {
+    --money-bg: #ecfeff;
+    --money-fg: #163143;
+    --money-accent: #0f766e;
+    --money-accent-soft: #dff8f7;
+    --money-border: #b8dfe2;
+    --money-danger: #b91c1c;
+    --money-muted: #4b6474;
+    --money-surface: #f5fffe;
+    --money-header: #115e59;
+    --money-header-contrast: #f0fdfa;
+    --money-row-hover: #edfdfd;
+    --money-field-bg: #ffffff;
+    --money-shadow: 0 1px 2px rgba(17, 94, 89, 0.1);
   }
 
   * {
@@ -22,7 +76,9 @@
   }
 
   body {
-    @apply m-0 bg-stone-100 text-slate-800 antialiased;
+    @apply m-0 antialiased;
+    background-color: var(--money-bg);
+    color: var(--money-fg);
     font-size: 14px;
   }
 
@@ -34,13 +90,23 @@
   }
 
   button {
-    @apply inline-flex items-center justify-center rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-white shadow-sm transition hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2;
+    @apply inline-flex items-center justify-center rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-white shadow-sm transition duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2;
     background-color: var(--money-accent);
   }
 
+  button:active,
+  .header-settings:active,
+  .header-logout:active {
+    transform: translateY(1px);
+  }
+
   .btn-link {
-    @apply border-0 bg-transparent p-0 text-xs font-medium underline decoration-2 underline-offset-2;
+    @apply border-0 bg-transparent p-0 text-xs font-medium underline decoration-2 underline-offset-2 transition-opacity duration-150 ease-out;
     color: var(--money-accent);
+  }
+
+  .btn-link:hover {
+    opacity: 0.85;
   }
 
   .btn-link.danger {
@@ -83,11 +149,16 @@
 
 @layer components {
   .app-header {
-    @apply sticky top-0 z-30 flex flex-wrap items-center gap-3 border-b border-brand-700 bg-brand-700 px-4 py-2 text-white;
+    @apply sticky top-0 z-30 flex flex-wrap items-center gap-3 border-b px-4 py-2;
+    background-color: var(--money-header);
+    color: var(--money-header-contrast);
+    border-color: var(--money-border);
+    box-shadow: var(--money-shadow);
   }
 
   .app-header h1 {
     @apply m-0 flex items-center gap-2 text-lg font-semibold tracking-tight;
+    color: var(--money-header-contrast);
   }
 
   .brand-logo {
@@ -99,11 +170,17 @@
   }
 
   #main-nav a {
-    @apply rounded-md px-2.5 py-1.5 text-white transition hover:bg-brand-600;
+    @apply rounded-md px-2.5 py-1.5 transition;
+    color: var(--money-header-contrast);
+  }
+
+  #main-nav a:hover {
+    background-color: rgba(255, 255, 255, 0.08);
   }
 
   #main-nav a.active {
-    @apply bg-brand-800 shadow-sm ring-1 ring-brand-300;
+    background-color: rgba(255, 255, 255, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
   }
 
   .header-profile {
@@ -111,11 +188,15 @@
   }
 
   .header-profile label {
-    @apply flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em] text-brand-100;
+    @apply flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em];
+    color: var(--money-header-contrast);
   }
 
   .header-profile select {
-    @apply rounded-md border border-brand-400 bg-brand-600 px-2 py-1.5 text-sm text-white shadow-sm focus:border-brand-300 focus:outline-none focus:ring-2 focus:ring-brand-200;
+    @apply rounded-md border px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--money-header-contrast);
   }
 
   .header-profile select option {
@@ -123,45 +204,101 @@
   }
 
   .header-shortcuts {
-    @apply hidden text-xs uppercase tracking-[0.06em] text-brand-100/80 lg:inline;
+    @apply hidden text-xs uppercase tracking-[0.06em] lg:inline;
+    color: rgba(255, 255, 255, 0.8);
   }
 
-  .header-settings {
-    @apply rounded-md border border-brand-500 bg-brand-600 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-500;
-  }
-
+  .header-settings,
   .header-logout {
-    @apply rounded-md border border-brand-500 bg-brand-600 px-2.5 py-1.5 text-sm font-medium text-white shadow-sm transition hover:bg-brand-500;
+    @apply rounded-md border px-2.5 py-1.5 text-sm font-medium shadow-sm transition;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--money-header-contrast);
+  }
+
+  .header-settings:hover,
+  .header-logout:hover {
+    background-color: rgba(255, 255, 255, 0.14);
   }
 
   #app {
     @apply mx-auto w-full max-w-7xl px-4 py-5;
   }
 
+  .theme-preview {
+    @apply rounded-lg border px-3 py-2 text-sm;
+    background-color: var(--money-surface);
+    border-color: var(--money-border);
+    color: var(--money-fg);
+  }
+
   h2 {
-    @apply mb-3 text-xl font-semibold tracking-tight text-slate-800;
+    @apply mb-3 text-xl font-semibold tracking-tight;
     margin-top: 0.2rem;
+    color: var(--money-fg);
   }
 
   h3 {
-    @apply mb-2 mt-5 text-base font-semibold text-slate-700;
+    @apply mb-2 mt-5 text-base font-semibold;
+    color: var(--money-fg);
   }
 
   .table-wrap {
-    @apply w-full overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm;
+    @apply w-full overflow-x-auto rounded-xl border shadow-sm;
+    background-color: var(--money-surface);
+    border-color: var(--money-border);
   }
 
   .grid {
-    @apply w-full min-w-[520px] border-collapse bg-white text-sm text-slate-700;
+    @apply w-full min-w-[520px] border-collapse text-sm;
+    background-color: var(--money-surface);
+    color: var(--money-fg);
+    table-layout: fixed;
   }
 
   .grid th,
   .grid td {
-    @apply border-b border-stone-200 px-2.5 py-1.5 text-left;
+    @apply border-b px-2.5 py-1.5 text-left;
+    border-color: var(--money-border);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    vertical-align: middle;
+  }
+
+  .grid tbody tr {
+    transition: background-color 150ms ease-out;
+  }
+
+  .grid tbody tr:hover {
+    background-color: var(--money-row-hover);
   }
 
   .grid th {
-    @apply bg-brand-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-600;
+    white-space: nowrap;
+  }
+
+  .grid th:nth-child(1),
+  .grid td:nth-child(1) { width: 22%; }
+
+  .grid th:nth-child(2),
+  .grid td:nth-child(2) { width: 18%; }
+
+  .grid th:nth-child(3),
+  .grid td:nth-child(3) { width: 15%; }
+
+  .grid th:nth-child(4),
+  .grid td:nth-child(4) { width: 15%; }
+
+  .grid th:nth-child(5),
+  .grid td:nth-child(5) { width: 15%; }
+
+  .grid th:nth-child(6),
+  .grid td:nth-child(6) { width: 15%; }
+
+  .grid th {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em];
+    background-color: var(--money-accent-soft);
+    color: var(--money-fg);
   }
 
   .grid tbody tr:last-child td {
@@ -169,17 +306,31 @@
   }
 
   .form-row {
-    @apply flex flex-wrap items-end gap-3 rounded-xl border border-stone-200 bg-white p-3 shadow-sm;
+    @apply flex flex-wrap items-end gap-3 rounded-xl border p-3 shadow-sm;
+    background-color: var(--money-surface);
+    border-color: var(--money-border);
+    box-shadow: var(--money-shadow);
   }
 
   .form-row label {
-    @apply flex flex-col gap-1 text-xs text-slate-600;
+    @apply flex flex-col gap-1 text-xs;
+    color: var(--money-fg);
   }
 
   .form-row input,
   .form-row select,
   .form-row textarea {
-    @apply rounded-md border border-stone-300 px-2 py-1.5 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-200;
+    @apply rounded-md border px-2 py-1.5 text-sm focus:outline-none focus:ring-2;
+    background-color: var(--money-field-bg);
+    border-color: var(--money-border);
+    color: var(--money-fg);
+  }
+
+  .form-row input:focus,
+  .form-row select:focus,
+  .form-row textarea:focus {
+    border-color: var(--money-accent);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--money-accent) 18%, transparent);
   }
 
   .form-row input.num {
@@ -246,7 +397,9 @@
 
   .profile-inline-row,
   .category-inline-row {
-    @apply border border-brand-600 bg-amber-50;
+    @apply border;
+    background-color: var(--money-accent-soft);
+    border-color: var(--money-accent);
   }
 
   .path-cell {
@@ -255,11 +408,13 @@
   }
 
   .toast {
-    @apply fixed bottom-4 right-4 z-10 hidden rounded-md bg-brand-700 px-4 py-2 text-sm font-medium text-white shadow-lg;
+    @apply fixed bottom-4 right-4 z-10 hidden rounded-md px-4 py-2 text-sm font-medium text-white shadow-lg;
+    background-color: var(--money-header);
+    color: var(--money-header-contrast);
   }
 
   .toast-error {
-    @apply bg-red-700;
+    background-color: var(--money-danger);
   }
 
   .bar-cell {
@@ -267,15 +422,17 @@
   }
 
   .bar {
-    @apply h-3.5 overflow-hidden rounded bg-brand-100;
+    @apply h-3.5 overflow-hidden rounded;
+    background-color: var(--money-accent-soft);
   }
 
   .bar-fill {
-    @apply h-full bg-brand-600;
+    @apply h-full;
+    background-color: var(--money-accent);
   }
 
   .bar-fill.over {
-    @apply bg-red-700;
+    background-color: var(--money-danger);
   }
 
   .report-grid {
@@ -304,6 +461,31 @@
 
   .recon-actions .btn-link:disabled {
     @apply cursor-not-allowed opacity-60;
+  }
+
+  .recon-adjust-form {
+    @apply ml-auto flex flex-wrap items-end gap-2;
+  }
+
+  .recon-adjust-form label {
+    @apply flex flex-col gap-1 text-[11px] uppercase tracking-[0.05em] text-slate-600;
+  }
+
+  .recon-adjust-form input {
+    @apply rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-slate-700;
+  }
+
+  .recon-adjust-form input[name="amount"] {
+    width: 7rem;
+    text-align: right;
+  }
+
+  .recon-adjust-form input[name="description"] {
+    min-width: 220px;
+  }
+
+  .recon-adjust-form button {
+    @apply px-2.5 py-1 text-xs;
   }
 
   .txn-scroll {
