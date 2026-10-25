@@ -17,12 +17,13 @@ Este projeto usa uma abordagem de design baseada em tokens semânticos e temas l
 
 ## Temas atuais
 
-1. Floresta (padrão)
-2. Midnight
-3. Sunset
-4. Deep Ocean
+1. Padrão (ardósia/azul-aço): fundo `#f2f4f8`, acento `#2f5fa8`,
+   header `#17324d`, linha alternada `#f7f0dd`.
+2. Midnight: fundo `#0b1220`, acento `#7aa2f7`, header `#141b2d`.
+3. Sunset: fundo `#fbf6f1`, acento `#b86b3d`, header `#8f4e2f`.
+4. Deep Ocean: fundo `#eaf7f8`, acento `#0e7c74`, header `#0f6b63`.
 
-Esses temas ficam disponíveis por meio do atributo `data-theme` no `<body>` e são persistidos no `localStorage` sob a chave `money99-theme`.
+Esses temas ficam disponíveis por meio do atributo `data-theme` no `<body>` e são persistidos no `localStorage` sob a chave `money99-theme`. A escala `brand` do Tailwind e o `box-shadow` acompanham a paleta do tema padrão.
 
 ## Skills consultadas
 

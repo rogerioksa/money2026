@@ -1368,12 +1368,20 @@ async function viewImport() {
 
     let content = pasted.toUpperCase();
     let filename = "extrato-colado.txt";
-    if (file) {
-      content = (await file.text()).toUpperCase();
-      filename = file.name;
-    }
 
     try {
+      if (file) {
+        // Leitura compatível com webviews antigos (EdgeHTML/IE), que podem
+        // não implementar File.prototype.text(); FileReader é amplamente suportado.
+        const fileText = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result == null ? "" : reader.result));
+          reader.onerror = () => reject(reader.error || new Error("Falha ao ler o arquivo"));
+          reader.readAsText(file);
+        });
+        content = fileText.toUpperCase();
+        filename = file.name;
+      }
       const preview = await api("/api/import/preview", {
         method: "POST",
         body: JSON.stringify({ content, filename }),
@@ -1653,6 +1661,7 @@ async function viewSettings() {
     </form>
 
     <h3>Visual</h3>
+    <p class="section-caption">Escolha um tema para conforto visual em uso prolongado.</p>
     <form id="theme-form" class="form-row form-flex">
       <label>Tema
         <select name="theme" id="theme-select">
@@ -1661,9 +1670,10 @@ async function viewSettings() {
       </label>
       <button type="submit">Aplicar tema</button>
     </form>
-    <p class="theme-preview">Ajuste o visual do sistema para mais conforto em uso diário.</p>
+    <p class="theme-preview">As alterações de tema são aplicadas imediatamente.</p>
 
     <h3>Perfis (pessoal x empresarial/MEI)</h3>
+    <p class="section-caption">Perfis separam os dados financeiros. Use empresarial para relatórios do MEI.</p>
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Nome</th><th>Tipo</th><th>CNPJ</th>
@@ -1672,7 +1682,8 @@ async function viewSettings() {
       </table>
     </div>
 
-    <h3>Novo perfil</h3>
+    <h3 id="profile-form-title">Novo perfil</h3>
+    <p id="profile-form-hint" class="profile-form-hint">Preencha os campos para criar um perfil.</p>
     <form id="profile-form" class="form-row form-flex">
       <label>Nome <input name="name" required maxlength="120"></label>
       <label>Tipo
@@ -1699,9 +1710,11 @@ async function viewSettings() {
       <label>Abertura <input type="date" name="opened_on" id="profile-opened"></label>
       <label>Limite anual <input name="annual_limit" class="num" value="81.000,00"></label>
       <button type="submit">Criar perfil</button>
+      <button type="button" data-action="cancel-profile-edit" class="btn-link" hidden>Cancelar edição</button>
     </form>
 
     <h3>Banco de dados</h3>
+    <p class="section-caption">Backups e restaurações para segurança dos seus dados.</p>
     <p class="muted">Arquivo: <code>${esc(maintenance.database)}</code></p>
     <div class="form-row form-flex">
       <button type="button" id="backup-btn">Fazer backup agora</button>
@@ -1714,20 +1727,23 @@ async function viewSettings() {
       </table>
     </div>
 
-    <h4>Restaurar backup</h4>
-    <form id="restore-form" class="form-row form-flex">
-      <label>Arquivo <input type="file" name="file" accept=".sqlite,.sqlite3,.db" required></label>
-      <label>Digite RESTAURAR <input name="confirm" placeholder="RESTAURAR" required></label>
-      <button type="submit">Restaurar arquivo</button>
-    </form>
+    <section class="maintenance-danger">
+      <h4>Restaurar backup</h4>
+      <p class="muted">Substitui o banco atual por um backup selecionado.</p>
+      <form id="restore-form" class="form-row form-flex">
+        <label>Arquivo <input type="file" name="file" accept=".sqlite,.sqlite3,.db" required></label>
+        <label>Digite RESTAURAR <input name="confirm" placeholder="RESTAURAR" required></label>
+        <button type="submit">Restaurar arquivo</button>
+      </form>
 
-    <h4 class="danger-title">Resetar banco de dados</h4>
-    <p class="muted">Apaga contas, categorias, transações, orçamentos, perfis e login.
-      Um backup automático é criado antes.</p>
-    <form id="reset-form" class="form-row form-flex">
-      <label>Digite APAGAR <input name="confirm" placeholder="APAGAR" required></label>
-      <button type="submit" class="btn-danger">Resetar banco</button>
-    </form>`;
+      <h4 class="danger-title">Resetar banco de dados</h4>
+      <p class="muted">Apaga contas, categorias, transações, orçamentos, perfis e login.
+        Um backup automático é criado antes.</p>
+      <form id="reset-form" class="form-row form-flex">
+        <label>Digite APAGAR <input name="confirm" placeholder="APAGAR" required></label>
+        <button type="submit" class="btn-danger">Resetar banco</button>
+      </form>
+    </section>`;
 
   document.getElementById("pwd-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
@@ -1752,7 +1768,15 @@ async function viewSettings() {
     toast("Tema aplicado!");
   });
 
-  const annualLimitField = document.querySelector('#profile-form [name="annual_limit"]');
+  const profileForm = document.getElementById("profile-form");
+  const profileFormTitle = document.getElementById("profile-form-title");
+  const profileFormHint = document.getElementById("profile-form-hint");
+  const profileKindField = profileForm.querySelector('[name="kind"]');
+  const profileSubmitBtn = profileForm.querySelector('button[type="submit"]');
+  const profileCancelEditBtn = profileForm.querySelector('[data-action="cancel-profile-edit"]');
+  const annualLimitField = profileForm.querySelector('[name="annual_limit"]');
+  let editingProfile = null;
+
   const toggleAnnualLimitField = (kind) => {
     const isBusiness = kind === "business";
     annualLimitField.disabled = !isBusiness;
@@ -1763,17 +1787,53 @@ async function viewSettings() {
       annualLimitField.value = "81.000,00";
     }
   };
-  document.getElementById("profile-form").querySelector('[name="kind"]').addEventListener("change", (ev) => {
+  const setProfileCreateMode = () => {
+    editingProfile = null;
+    profileFormTitle.textContent = "Novo perfil";
+    profileFormHint.textContent = "Preencha os campos para criar um perfil.";
+    profileSubmitBtn.textContent = "Criar perfil";
+    profileCancelEditBtn.hidden = true;
+    profileForm.reset();
+    toggleAnnualLimitField(profileKindField.value);
+  };
+  const setProfileEditMode = (profile) => {
+    if (!profile) return;
+    editingProfile = profile;
+    profileFormTitle.textContent = `Editar perfil: ${profile.name}`;
+    profileFormHint.textContent = "Revise os campos e salve para atualizar o perfil.";
+    profileSubmitBtn.textContent = "Salvar alterações";
+    profileCancelEditBtn.hidden = false;
+    profileForm.name.value = profile.name || "";
+    profileForm.kind.value = profile.kind || "personal";
+    profileForm.activity.value = profile.activity || "servicos";
+    profileForm.cnpj.value = profile.cnpj || "";
+    profileForm.legal_name.value = profile.legal_name || "";
+    profileForm.trade_name.value = profile.trade_name || "";
+    profileForm.opened_on.value = profile.opened_on || "";
+    profileForm.annual_limit.value = fmtMinor(profile.annual_limit || 8100000);
+    toggleAnnualLimitField(profileForm.kind.value);
+    profileForm.querySelector('[name="name"]')?.focus();
+  };
+
+  profileKindField.addEventListener("change", (ev) => {
     toggleAnnualLimitField(ev.target.value);
   });
-  toggleAnnualLimitField(document.getElementById("profile-form").querySelector('[name="kind"]').value);
+  toggleAnnualLimitField(profileKindField.value);
 
-  document.getElementById("profile-form").addEventListener("submit", async (ev) => {
+  profileCancelEditBtn.addEventListener("click", () => {
+    setProfileCreateMode();
+  });
+
+  profileForm.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const f = ev.target;
+    const isEditing = Boolean(editingProfile);
+    const profileId = editingProfile?.id;
+    const method = isEditing ? "PUT" : "POST";
+    const endpoint = isEditing ? `/api/profiles/${profileId}` : "/api/profiles";
     try {
-      await api("/api/profiles", {
-        method: "POST",
+      await api(endpoint, {
+        method,
         body: JSON.stringify({
           name: f.name.value,
           kind: f.kind.value,
@@ -1783,11 +1843,12 @@ async function viewSettings() {
           opened_on: f.opened_on.value,
           annual_limit: f.kind.value === "business" ? (parseBRL(f.annual_limit.value) ?? 8100000) : 0,
           activity: f.activity.value,
+          active: isEditing ? editingProfile.active : true,
         }),
       });
       await refreshCache();
       viewSettings();
-      toast("Perfil criado!");
+      toast(isEditing ? "Perfil atualizado!" : "Perfil criado!");
     } catch (err) { toast(err.message, true); }
   });
 
@@ -1809,7 +1870,7 @@ async function viewSettings() {
     const activate = tr.querySelector('[data-action="activate"]');
     if (activate) activate.addEventListener("click", () => switchProfile(id));
     tr.querySelector('[data-action="edit"]').addEventListener("click", () => {
-      openProfileEdit(profile);
+      setProfileEditMode(profile);
     });
     tr.querySelector('[data-action="delete"]').addEventListener("click", () => {
       startInlineProfileDelete(tr, profile, id);
@@ -1895,95 +1956,6 @@ async function lookupCnpj(cnpj, apply) {
   } catch (err) {
     toast(err.message, true);
   }
-}
-
-function openProfileEdit(profile) {
-  if (!profile) return;
-  const container = document.createElement("div");
-  container.className = "profile-inline-edit";
-  const isBusiness = profile.kind === "business";
-  container.innerHTML = `
-    <div class="form-row form-flex profile-inline-row">
-      <label>Nome <input name="p-name" value="${esc(profile.name)}" maxlength="120"></label>
-      <label>Tipo
-        <select name="p-kind">
-          <option value="personal" ${profile.kind === "personal" ? "selected" : ""}>Pessoal</option>
-          <option value="business" ${profile.kind === "business" ? "selected" : ""}>Empresarial (MEI)</option>
-        </select>
-      </label>
-      <label>Atividade MEI
-        <select name="p-activity">
-          <option value="comercio" ${(profile.activity || "servicos") === "comercio" ? "selected" : ""}>Comércio</option>
-          <option value="industria" ${(profile.activity || "servicos") === "industria" ? "selected" : ""}>Indústria</option>
-          <option value="servicos" ${(profile.activity || "servicos") === "servicos" ? "selected" : ""}>Serviços</option>
-        </select>
-      </label>
-      <label>CNPJ
-        <span class="field-with-button">
-          <input name="p-cnpj" value="${esc(profile.cnpj || "")}" maxlength="20">
-          <button type="button" data-action="lookup-cnpj" title="Buscar dados na Receita">Buscar</button>
-        </span>
-      </label>
-      <label>Razão social <input name="p-legal" value="${esc(profile.legal_name || "")}" maxlength="200"></label>
-      <label>Nome fantasia <input name="p-trade" value="${esc(profile.trade_name || "")}" maxlength="200"></label>
-      <label>Abertura <input type="date" name="p-opened" value="${esc(profile.opened_on || "")}"></label>
-      <label class="profile-limit-field" style="display: ${isBusiness ? "" : "none"};">Limite anual <input name="p-limit" class="num" value="${fmtMinor(profile.annual_limit || 8100000)}"></label>
-      <button type="button" data-action="save">Salvar</button>
-      <button type="button" data-action="cancel" class="btn-link">Cancelar</button>
-    </div>`;
-  const appEl = document.getElementById("app");
-  appEl.appendChild(container);
-  const kindField = container.querySelector('[name="p-kind"]');
-  const limitField = container.querySelector('[name="p-limit"]');
-  const limitLabel = container.querySelector('.profile-limit-field');
-  const toggleProfileLimit = () => {
-    const isBusinessKind = kindField.value === "business";
-    if (limitLabel) limitLabel.style.display = isBusinessKind ? "" : "none";
-    if (limitField && !isBusinessKind) {
-      limitField.value = "0,00";
-    }
-  };
-  kindField.addEventListener("change", toggleProfileLimit);
-  toggleProfileLimit();
-  container.querySelector('[data-action="cancel"]').addEventListener("click", () => container.remove());
-  container.querySelector('[data-action="lookup-cnpj"]').addEventListener("click", () => {
-    lookupCnpj(container.querySelector('[name="p-cnpj"]').value, (data) => {
-      const fill = (name, value) => {
-        if (value) container.querySelector(`[name="${name}"]`).value = value;
-      };
-      fill("p-legal", data.legal_name);
-      fill("p-trade", data.trade_name);
-      fill("p-opened", data.opened_on);
-      if (data.activity) {
-        container.querySelector('[name="p-activity"]').value = data.activity;
-      }
-    });
-  });
-  container.querySelector('[data-action="save"]').addEventListener("click", async () => {
-    const selectedKind = container.querySelector('[name="p-kind"]').value;
-    try {
-      await api(`/api/profiles/${profile.id}`, {
-        method: "PUT",
-        body: JSON.stringify({
-          name: container.querySelector('[name="p-name"]').value,
-          kind: selectedKind,
-          cnpj: container.querySelector('[name="p-cnpj"]').value,
-          legal_name: container.querySelector('[name="p-legal"]').value,
-          trade_name: container.querySelector('[name="p-trade"]').value,
-          opened_on: container.querySelector('[name="p-opened"]').value,
-          annual_limit: selectedKind === "business" ? (parseBRL(container.querySelector('[name="p-limit"]').value) ?? profile.annual_limit ?? 8100000) : 0,
-          activity: container.querySelector('[name="p-activity"]').value,
-          active: profile.active,
-        }),
-      });
-      await refreshCache();
-      container.remove();
-      viewSettings();
-      toast("Perfil atualizado!");
-    } catch (err) {
-      toast(err.message, true);
-    }
-  });
 }
 
 function startInlineProfileDelete(tr, profile, id) {

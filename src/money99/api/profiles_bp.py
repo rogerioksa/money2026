@@ -27,7 +27,9 @@ def _serialize(profile: Profile) -> dict:
 
 def _build(payload: dict, *, profile_id: int | None = None) -> Profile:
     kind = str(payload.get("kind", "personal") or "personal")
-    annual_limit = 0 if kind == "personal" else int(payload.get("annual_limit", DEFAULT_ANNUAL_LIMIT))
+    annual_limit = (
+        0 if kind == "personal" else int(payload.get("annual_limit", DEFAULT_ANNUAL_LIMIT))
+    )
     return Profile(
         id=profile_id,
         name=str(payload.get("name", "")),

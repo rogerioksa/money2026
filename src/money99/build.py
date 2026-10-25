@@ -31,7 +31,6 @@ def main() -> int:
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[2]
-    env = os.environ.copy()
 
     if not args.skip_css:
         npm_cmd = "npm.cmd" if os.name == "nt" else "npm"
@@ -42,7 +41,14 @@ def main() -> int:
         if pyinstaller.exists():
             cmd = [str(pyinstaller), "webview_pack.spec", "--noconfirm", "--clean"]
         else:
-            cmd = [sys.executable, "-m", "PyInstaller", "webview_pack.spec", "--noconfirm", "--clean"]
+            cmd = [
+            sys.executable,
+            "-m",
+            "PyInstaller",
+            "webview_pack.spec",
+            "--noconfirm",
+            "--clean",
+        ]
         _run(cmd, cwd=project_root)
 
     print("Build concluido.")

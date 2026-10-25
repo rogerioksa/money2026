@@ -24,7 +24,9 @@ def test_default_personal_profile_created(app):
 
 
 def test_personal_profile_has_no_annual_limit(client):
-    created = client.post("/api/profiles", json={"name": "Pessoal 2", "kind": "personal"}).get_json()
+    created = client.post(
+        "/api/profiles", json={"name": "Pessoal 2", "kind": "personal"}
+    ).get_json()
     assert created["annual_limit"] == 0
 
 

@@ -4,75 +4,77 @@
 
 @layer base {
   :root {
-    --money-bg: #f5f5f0;
-    --money-fg: #1a1a1a;
-    --money-accent: #1f5c3a;
-    --money-accent-soft: #edf4ee;
-    --money-border: #d9dfd4;
-    --money-danger: #a02020;
-    --money-muted: #5f6a62;
+    --money-font-ui: "Segoe UI Variable", "Segoe UI", "Trebuchet MS", sans-serif;
+    --money-font-numeric: "Cascadia Mono", "Consolas", "Courier New", monospace;
+    --money-bg: #f2f4f8;
+    --money-fg: #1c2433;
+    --money-accent: #2f5fa8;
+    --money-accent-soft: #e8effa;
+    --money-border: #c7d0de;
+    --money-danger: #b42318;
+    --money-muted: #607089;
     --money-surface: #ffffff;
-    --money-header: #1f5c3a;
-    --money-header-contrast: #ffffff;
-    --money-row-hover: #f4f8f5;
+    --money-header: #17324d;
+    --money-header-contrast: #f4f7fb;
+    --money-row-hover: #eaf0f8;
     --money-field-bg: #ffffff;
-    --money-row-alt: #f6f1db;
-    --money-card-alt: #eaf3ff;
+    --money-row-alt: #f7f0dd;
+    --money-card-alt: #e8f2ef;
     --money-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
   }
 
   body[data-theme="midnight"] {
-    --money-bg: #0f172a;
+    --money-bg: #0b1220;
     --money-fg: #e6edf8;
-    --money-accent: #8ec5ff;
-    --money-accent-soft: #12263d;
-    --money-border: #2b3d52;
+    --money-accent: #7aa2f7;
+    --money-accent-soft: #1a2440;
+    --money-border: #2b3a55;
     --money-danger: #fca5a5;
-    --money-muted: #a5b4c9;
-    --money-surface: #111c2d;
-    --money-header: #142338;
+    --money-muted: #a8b4cc;
+    --money-surface: #111a2b;
+    --money-header: #141b2d;
     --money-header-contrast: #ebf4ff;
-    --money-row-hover: #18273d;
+    --money-row-hover: #1a2335;
     --money-field-bg: #0b1220;
-    --money-row-alt: #242b18;
-    --money-card-alt: #132d45;
-    --money-shadow: 0 1px 2px rgba(15, 23, 42, 0.35);
+    --money-row-alt: #2a2418;
+    --money-card-alt: #1a2d3a;
+    --money-shadow: 0 1px 2px rgba(15, 23, 42, 0.45);
   }
 
   body[data-theme="sunset"] {
-    --money-bg: #fff8f2;
+    --money-bg: #fbf6f1;
     --money-fg: #2f241b;
-    --money-accent: #c97c4d;
-    --money-accent-soft: #fbeae0;
-    --money-border: #e8d0ba;
+    --money-accent: #b86b3d;
+    --money-accent-soft: #f3e3d8;
+    --money-border: #e2ccb6;
     --money-danger: #b42318;
     --money-muted: #7c6257;
     --money-surface: #fffdfb;
-    --money-header: #a55d3b;
+    --money-header: #8f4e2f;
     --money-header-contrast: #fff8f4;
-    --money-row-hover: #fff3ea;
+    --money-row-hover: #f7efe6;
     --money-field-bg: #fffdfb;
-    --money-row-alt: #fff0c8;
-    --money-card-alt: #e9f2ff;
-    --money-shadow: 0 1px 2px rgba(154, 77, 45, 0.12);
+    --money-row-alt: #f6e7c8;
+    --money-card-alt: #e9f0fa;
+    --money-shadow: 0 1px 2px rgba(143, 78, 47, 0.12);
   }
 
   body[data-theme="deep-ocean"] {
-    --money-bg: #edf9fb;
+    --money-bg: #eaf7f8;
     --money-fg: #163143;
-    --money-accent: #0f766e;
-    --money-accent-soft: #dff7f7;
-    --money-border: #bfdfe4;
+    --money-accent: #0e7c74;
+    --money-accent-soft: #dcf4f2;
+    --money-border: #b8dfe2;
     --money-danger: #b91c1c;
     --money-muted: #4b6474;
     --money-surface: #f5fffe;
-    --money-header: #166b61;
+    --money-header: #0f6b63;
     --money-header-contrast: #f0fdfa;
-    --money-row-hover: #ebfbfb;
+    --money-row-hover: #e6f6f7;
     --money-field-bg: #ffffff;
     --money-row-alt: #edf4d7;
     --money-card-alt: #e7f3ff;
-    --money-shadow: 0 1px 2px rgba(17, 94, 89, 0.1);
+    --money-shadow: 0 1px 2px rgba(15, 107, 99, 0.12);
   }
 
   * {
@@ -80,7 +82,7 @@
   }
 
   html {
-    font-family: "Segoe UI", Tahoma, sans-serif;
+    font-family: var(--money-font-ui);
   }
 
   body {
@@ -97,6 +99,11 @@
     font: inherit;
   }
 
+  :where(a, button, input, select, textarea, [role="button"]):focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--money-accent) 70%, #ffffff);
+    outline-offset: 2px;
+  }
+
   button {
     @apply inline-flex items-center justify-center rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-white shadow-sm transition duration-150 ease-out hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2;
     background-color: var(--money-accent);
@@ -109,8 +116,15 @@
   }
 
   .btn-link {
-    @apply border-0 bg-transparent p-0 text-xs font-medium underline decoration-2 underline-offset-2 transition-opacity duration-150 ease-out;
+    @apply inline-flex items-center rounded-md border-0 bg-transparent px-1.5 py-0.5 text-xs font-medium underline decoration-2 underline-offset-2 transition-opacity duration-150 ease-out;
     color: var(--money-accent);
+    box-shadow: none;
+  }
+
+  button.btn-link {
+    background-color: transparent;
+    color: var(--money-accent);
+    min-height: 0;
   }
 
   .btn-link:hover {
@@ -152,6 +166,7 @@
   .num {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    font-family: var(--money-font-numeric);
   }
 }
 
@@ -179,6 +194,9 @@
 
   #main-nav a {
     @apply rounded-md px-2.5 py-1.5 transition;
+    min-height: 38px;
+    display: inline-flex;
+    align-items: center;
     color: var(--money-header-contrast);
   }
 
@@ -196,12 +214,13 @@
   }
 
   .header-profile label {
-    @apply flex items-center gap-2 text-xs font-medium uppercase tracking-[0.08em];
+    @apply flex items-center gap-2 text-sm font-medium;
     color: var(--money-header-contrast);
   }
 
   .header-profile select {
     @apply rounded-md border px-2 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-2;
+    min-height: 38px;
     background-color: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.2);
     color: var(--money-header-contrast);
@@ -212,13 +231,14 @@
   }
 
   .header-shortcuts {
-    @apply hidden text-xs uppercase tracking-[0.06em] lg:inline;
+    @apply hidden;
     color: rgba(255, 255, 255, 0.8);
   }
 
   .header-settings,
   .header-logout {
-    @apply rounded-md border px-2.5 py-1.5 text-sm font-medium shadow-sm transition;
+    @apply rounded-md border px-2.5 py-1.5 text-sm font-semibold shadow-sm transition;
+    min-height: 38px;
     background-color: rgba(255, 255, 255, 0.08);
     border-color: rgba(255, 255, 255, 0.2);
     color: var(--money-header-contrast);
@@ -241,13 +261,13 @@
   }
 
   h2 {
-    @apply mb-3 text-xl font-semibold tracking-tight;
+    @apply mb-3 text-2xl font-semibold tracking-tight;
     margin-top: 0.2rem;
     color: var(--money-fg);
   }
 
   h3 {
-    @apply mb-2 mt-5 text-base font-semibold;
+    @apply mb-2 mt-6 text-lg font-semibold;
     color: var(--money-fg);
   }
 
@@ -307,8 +327,13 @@
   }
 
   .grid .cell-actions {
+    @apply flex flex-wrap items-center justify-end gap-1;
     justify-content: flex-end;
     text-align: right;
+  }
+
+  .grid .cell-actions .btn-link {
+    @apply px-2 py-1 text-[13px];
   }
 
   .grid tbody tr {
@@ -329,6 +354,10 @@
     color: var(--money-fg);
   }
 
+  .grid tbody tr:nth-child(2n) {
+    background-color: color-mix(in srgb, var(--money-accent-soft) 36%, transparent);
+  }
+
   .grid tbody tr:last-child td {
     @apply border-b-0;
   }
@@ -341,8 +370,37 @@
   }
 
   .form-row label {
-    @apply flex flex-col gap-1 text-xs;
+    @apply flex flex-col gap-1 text-sm;
     color: var(--money-fg);
+  }
+
+  .section-caption {
+    @apply mb-2 text-sm;
+    color: var(--money-muted);
+    max-width: 72ch;
+  }
+
+  .profile-form-hint {
+    @apply mb-2 mt-0 text-sm;
+    color: var(--money-muted);
+  }
+
+  .maintenance-danger {
+    @apply mt-4 rounded-xl border p-4;
+    border-color: color-mix(in srgb, var(--money-danger) 45%, var(--money-border));
+    background-color: color-mix(in srgb, var(--money-danger) 7%, var(--money-surface));
+  }
+
+  .maintenance-danger h4 {
+    @apply mt-0;
+  }
+
+  .maintenance-danger .danger-title {
+    @apply mb-2;
+  }
+
+  .maintenance-danger .muted {
+    color: color-mix(in srgb, var(--money-danger) 55%, var(--money-muted));
   }
 
   .form-row input,
@@ -358,7 +416,7 @@
   .form-row select:focus,
   .form-row textarea:focus {
     border-color: var(--money-accent);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--money-accent) 18%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--money-accent) 28%, transparent);
   }
 
   .form-row input.num {
@@ -801,5 +859,16 @@
 
   .login-form button {
     @apply py-2;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

@@ -198,7 +198,12 @@ def parse_pasted_text(content: str) -> list[ImportedTransaction]:
         if not line:
             continue
         lower = line.lower()
-        if lower.startswith("data") or lower.startswith("descrição") or lower.startswith("valor") or lower.startswith("saldo"):
+        if (
+            lower.startswith("data")
+            or lower.startswith("descrição")
+            or lower.startswith("valor")
+            or lower.startswith("saldo")
+        ):
             continue
         if not re.search(r"\d{2}/\d{2}/\d{4}", line):
             continue
@@ -218,7 +223,13 @@ def parse_pasted_text(content: str) -> list[ImportedTransaction]:
         amount = sign * amount_value
         before = _norm(body[:amount_match.start()].strip().rstrip("-").strip())
         after = _norm(body[amount_match.end():].strip())
-        after = re.sub(r"^(?:R\$\s*)?[\d]{1,3}(?:\.\d{3})*,\d{2}\s*", "", after, count=1, flags=re.IGNORECASE).strip()
+        after = re.sub(
+            r"^(?:R\$\s*)?[\d]{1,3}(?:\.\d{3})*,\d{2}\s*",
+            "",
+            after,
+            count=1,
+            flags=re.IGNORECASE,
+        ).strip()
         after = _norm(after)
         description = before
         if after and after not in description:
