@@ -41,15 +41,22 @@ class ImportedTransaction:
 
 def _parse_qif_date(text: str) -> str:
     text = text.strip()
-    # QIF usa MM/DD/AAAA (ou apostrofo: 12/31'99). Tambem aceita AAAA-MM-DD.
+    # QIF usa MM/DD/AAAA (ou apostrofo: 12/31'99). Tambem aceita AAAA-MM-DD
+    # e formatos com dia primeiro (DD/MM/AAAA, DD-MM-AAAA) quando o dia > 12.
     normalized = text.replace("'", "/").replace(" ", "")
     parts = re.split(r"[/\-.]", normalized)
     if len(parts) != 3:
         raise StatementParseError(f"data QIF inválida: {text!r}")
     if len(parts[0]) == 4:  # AAAA-MM-DD
         year, month, day = parts
-    else:  # MM/DD/AAAA
-        month, day, year = parts
+    else:
+        # Padrao QIF: MM/DD/AAAA. Se o primeiro campo for > 12, assume DD/MM/AAAA.
+        if int(parts[0]) > 12 and int(parts[1]) <= 12:
+            day, month, year = parts
+        elif int(parts[1]) > 12 and int(parts[0]) <= 12:
+            month, day, year = parts
+        else:
+            month, day, year = parts
     if len(year) == 2:
         year = ("19" if int(year) > 50 else "20") + year
     iso = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
@@ -180,12 +187,16 @@ def _parse_br_money(text: str) -> int:
 
 def _parse_pasted_date(text: str) -> str:
     value = text.strip()
-    match = re.search(r"\d{2}/\d{2}/\d{4}", value)
+    match = re.search(r"\d{2}[/.\-]\d{2}[/.\-]\d{4}", value)
     if not match:
         raise StatementParseError(f"data do extrato inválida: {text!r}")
     raw = match.group(0)
-    day, month, year = raw.split("/")
-    iso = f"{year}-{month}-{day}"
+    parts = re.split(r"[/.\-]", raw)
+    day, month, year = parts
+    # Texto colado e BR: dia/mes/ano. Aceita mes/dia se o mes for invalido.
+    if not (1 <= int(month) <= 12):
+        day, month = month, day
+    iso = f"{year}-{month.zfill(2)}-{day.zfill(2)}"
     parse_iso_date(iso)
     return iso
 
@@ -205,9 +216,9 @@ def parse_pasted_text(content: str) -> list[ImportedTransaction]:
             or lower.startswith("saldo")
         ):
             continue
-        if not re.search(r"\d{2}/\d{2}/\d{4}", line):
+        if not re.search(r"\d{2}[/.\-]\d{2}[/.\-]\d{4}", line):
             continue
-        date_match = re.search(r"\d{2}/\d{2}/\d{4}", line)
+        date_match = re.search(r"\d{2}[/.\-]\d{2}[/.\-]\d{4}", line)
         date = _parse_pasted_date(date_match.group(0))
         body = line[date_match.end():].strip()
         amount_match = re.search(
@@ -256,6 +267,6 @@ def parse_statement(content: str, filename: str = "") -> list[ImportedTransactio
         return parse_ofx(content)
     if "!TYPE:" in head or lower_name.endswith(".qif"):
         return parse_qif(content)
-    if re.search(r"\d{2}/\d{2}/\d{4}", content):
+    if re.search(r"\d{2}[/.\-]\d{2}[/.\-]\d{4}", content):
         return parse_pasted_text(content)
     raise StatementParseError("formato não reconhecido (esperado QIF, OFX ou texto colado)")
