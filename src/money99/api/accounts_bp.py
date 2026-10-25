@@ -64,11 +64,12 @@ def update_account(account_id: int):
     payload = request.get_json(silent=True) or {}
     repo = get_repo()
     try:
+        current = repo.get_account(account_id)
         account = Account(
             id=account_id,
             name=payload.get("name", ""),
             type=payload.get("type", "bank"),
-            initial_balance=int(payload.get("initial_balance", 0)),
+            initial_balance=int(payload.get("initial_balance", current.initial_balance)),
             active=bool(payload.get("active", True)),
             credit_limit=int(payload.get("credit_limit", 0)),
         )
@@ -95,8 +96,9 @@ def delete_account(account_id: int):
 @bp.get("/<int:account_id>/balance")
 def account_balance(account_id: int):
     repo = get_repo()
+    as_of = request.args.get("as_of") or None
     try:
-        balances = repo.account_balances(account_id)
+        balances = repo.account_balances(account_id, as_of=as_of)
     except LookupError as exc:
         return error(str(exc), 404)
     return jsonify(balances)

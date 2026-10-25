@@ -68,12 +68,15 @@ Mensal das Receitas Brutas + controle mensal) em HTML para impressão/PDF. Sem
 | Método | Rota | Descrição |
 |---|---|---|
 | GET | `/api/accounts[?active=1]` | Lista contas com `balance`, `future` e `credit_limit`. |
-| POST | `/api/accounts` | Cria conta `{name, type, initial_balance, credit_limit}`. |
+| POST | `/api/accounts` | Cria conta `{name, type, credit_limit}`. |
 | GET | `/api/accounts/<id>` | Detalhe. |
 | PUT | `/api/accounts/<id>` | Atualiza. |
 | DELETE | `/api/accounts/<id>` | Exclui (400 se tiver transações). |
 | GET | `/api/accounts/<id>/balance` | `{balance, future}` (saldo até hoje + lançamentos futuros). |
 | GET | `/api/accounts/<id>/reconciliation` | Resumo de conciliação. |
+
+No fluxo atual da aplicação, o saldo de abertura deve ser lançado manualmente no
+Extrato como transação.
 
 `type`: `bank|credit|cash|asset|investment`. `credit_limit` (centavos) é o
 limite de crédito/cheque especial; no painel, `available = balance + credit_limit`
@@ -103,6 +106,8 @@ invertido na conta de destino) e não é somado ao saldo.
 
 Campos aceitos/retornados incluem `notes`, `reconciled` e `doc_issued` (MEI:
 documento fiscal emitido — venda para PJ; usado nas linhas do Caderno do MEI).
+A SPA usa esse endpoint tanto na conciliação individual (checkbox) quanto nas
+ações em massa para os lançamentos visíveis no Extrato.
 
 ## Orçamentos — `/api/budgets`
 

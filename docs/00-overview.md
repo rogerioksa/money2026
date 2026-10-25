@@ -34,7 +34,8 @@ webview_pack.spec                 # build do Money2026.exe
 ## Telas (SPA, hash-routes)
 
 - `#/contas` — CRUD de contas com saldo.
-- `#/extrato` — transações com filtros, lançamento rápido e conciliação.
+- `#/extrato` — transações com filtros, lançamento rápido e conciliação
+  (individual e em massa para itens visíveis).
 - `#/orcamento` — planejado × realizado por categoria/mês.
 - `#/relatorios` — gastos por categoria, patrimônio líquido, fluxo de caixa (canvas).
 - `#/importar` — preview e importação de extrato QIF/OFX.
@@ -58,3 +59,9 @@ ambientes críticos:
 
 Essas melhorias têm como objetivo reduzir erro humano, aumentar velocidade de uso
 em tarefas repetitivas e manter a solução estável em operação local.
+
+## Convenções atuais de uso
+
+- O saldo de abertura é lançado manualmente no Extrato como transação.
+- A tela de Extrato oferece ações de conciliação em massa para os lançamentos
+  filtrados/visíveis.

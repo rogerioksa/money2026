@@ -6,12 +6,16 @@ contas, transações com categorias, orçamentos, relatórios e importação QIF
 Interface web local (Flask + pywebview) empacotada em `.exe` único (PyInstaller).
 Dados em SQLite, dinheiro em centavos (inteiros), interface pt-BR / BRL.
 
+Fluxo atual de abertura de conta: o saldo de abertura é lançado manualmente no
+Extrato (não no cadastro da conta).
+
 ## Desenvolvimento
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev,build]"
 money99            # abre janela pywebview
+money99-build      # build:css + pyinstaller
 pytest             # testes
 ruff check src tests
 node --check "src\money99\web\static\js\app.js"
@@ -24,6 +28,7 @@ O projeto foi refinado para uso desktop com foco em produtividade e segurança:
 - atalhos de teclado e foco automático para cadastro e edição de registros
 - confirmação em ações destrutivas e feedback visual de carregamento
 - ajustes de contraste e visibilidade para navegação acessível
+- conciliação em massa no Extrato (conciliar/desfazer itens visíveis)
 - páginas de impressão com margens reduzidas para relatório e MEI
 - empacotamento com PyInstaller validado por smoke test do executável gerado
 

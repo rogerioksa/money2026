@@ -39,6 +39,20 @@ def test_accounts_crud(client):
     assert client.get("/api/accounts").get_json() == []
 
 
+def test_account_update_without_initial_balance_preserves_value(client):
+    account = create_account(client, initial=12345)
+    res = client.put(f"/api/accounts/{account['id']}", json={
+        "name": "Conta sem ajuste inicial",
+        "type": "bank",
+        "active": True,
+        "credit_limit": 1000,
+    })
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["initial_balance"] == 12345
+    assert body["balance"] == 12345
+
+
 def test_account_balance_ignores_future_transactions(client):
     account = create_account(client)
     cat = expense_category(client)
@@ -53,6 +67,23 @@ def test_account_balance_ignores_future_transactions(client):
     listed = client.get("/api/accounts").get_json()[0]
     assert listed["balance"] == 100000
     assert listed["future"] == -1234
+
+
+def test_account_balance_as_of(client):
+    account = create_account(client)
+    cat = expense_category(client)
+
+    client.post("/api/transactions", json={
+        "date": "2026-10-01", "description": "Despesa 1", "account_id": account["id"],
+        "amount": -1000, "category_id": cat["id"],
+    })
+    client.post("/api/transactions", json={
+        "date": "2026-10-03", "description": "Despesa 2", "account_id": account["id"],
+        "amount": -500, "category_id": cat["id"],
+    })
+
+    body = client.get(f"/api/accounts/{account['id']}/balance?as_of=2026-10-01").get_json()
+    assert body["balance"] == 99000
 
 
 def test_account_validation_errors(client):

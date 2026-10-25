@@ -21,6 +21,7 @@ build = ["pyinstaller>=6.0"]
 
 [project.scripts]
 money99 = "money99.main:main"
+money99-build = "money99.build:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/money99"]

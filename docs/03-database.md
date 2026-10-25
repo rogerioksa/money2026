@@ -9,7 +9,8 @@ SQLite por usuário (`data/money99.sqlite`), SQLAlchemy 2.0 (`db/models.py`).
   trade_name, opened_on, annual_limit, activity, active`. Separa os dados por
   perfil; `activity` (comercio/industria/servicos) escolhe a seção do Caderno do
   MEI.
-- **accounts** — `id, profile_id, name, type, initial_balance, active, credit_limit`.
+- **accounts** — `id, profile_id, name, type, active, credit_limit` e campos
+  internos para composição do saldo base.
   `credit_limit` (centavos) é o limite de crédito/cheque especial; o painel mostra
   `available = saldo + limite` em todas as contas.
 - **categories** — `id, profile_id, name, kind (income|expense), parent_id`.
@@ -34,10 +35,13 @@ linhas órfãs a ele (`_seed_profiles`).
 conta considera apenas transações até **hoje**:
 
 ```
-initial_balance
+saldo_base_da_conta
   + SUM(amount WHERE account_id = conta AND date <= hoje)
   + SUM(-amount WHERE transfer_account_id = conta AND date <= hoje)
 ```
+
+No uso padrão da aplicação, o saldo de abertura é registrado manualmente no
+Extrato.
 
 Transações com `date > hoje` não entram no saldo; o repository as expõe em
 `future` (`account_balances`) para a interface mostrar como lançamentos futuros.

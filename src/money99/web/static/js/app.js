@@ -367,7 +367,6 @@ async function viewAccounts() {
           <option value="investment">Investimento</option>
         </select>
       </label>
-      <label>Saldo inicial <input name="initial_balance" value="0,00" class="num"></label>
       <label>Limite de crédito <input name="credit_limit" value="0,00" class="num"></label>
       <button type="submit">Criar</button>
     </form>`;
@@ -377,7 +376,6 @@ async function viewAccounts() {
   document.getElementById("account-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const form = ev.target;
-    const initial = parseBRL(form.initial_balance.value) ?? 0;
     const limit = parseBRL(form.credit_limit.value) ?? 0;
     setSubmitState(form, true, "Criando");
     try {
@@ -386,7 +384,6 @@ async function viewAccounts() {
         body: JSON.stringify({
           name: form.name.value,
           type: form.type.value,
-          initial_balance: initial,
           credit_limit: limit,
         }),
       });
@@ -453,20 +450,79 @@ async function viewTransactions() {
       : '<span class="uncategorized">— sem categoria</span>';
   };
 
-  const rows = txns.map((t) => `
-    <tr data-id="${t.id}">
-      <td class="cell-date">${fmtDate(t.date)}${t.date > today ? ' <span class="badge future">futuro</span>' : ""}</td>
-      <td class="cell-desc">${esc(t.description)}</td>
-      <td class="cell-account">${esc(accountName(t.account_id))}</td>
-      <td class="cell-cat">${catLabel(t)}</td>
-      ${business ? `<td class="cell-doc">${t.doc_issued ? "sim" : "—"}</td>` : ""}
-      <td class="num cell-amount ${t.amount < 0 ? "neg" : "pos"}">${fmtMinor(t.amount)}</td>
-      <td class="cell-recon"><input type="checkbox" data-action="reconcile" ${t.reconciled ? "checked" : ""}></td>
-      <td class="cell-actions">
-        <button class="btn-link" data-action="edit">Editar</button>
-        <button class="btn-link danger" data-action="delete">Excluir</button>
-      </td>
-    </tr>`).join("");
+  const signedMovement = (t) => {
+    if (accountId) {
+      if (t.account_id === accountId) return t.amount;
+      if (t.transfer_account_id === accountId) return -t.amount;
+      return 0;
+    }
+    return t.transfer_account_id != null ? 0 : t.amount;
+  };
+
+  const columnCount = business ? 8 : 7;
+  const dailyStats = new Map();
+  for (const t of txns) {
+    const current = dailyStats.get(t.date) || { movement: 0, count: 0 };
+    current.movement += signedMovement(t);
+    current.count += 1;
+    dailyStats.set(t.date, current);
+  }
+
+  const dailyClosing = new Map();
+  if (accountId && txns.length) {
+    const dateKeys = Array.from(dailyStats.keys()).sort();
+    const firstDate = dateKeys[0];
+    const prevDateObj = new Date(`${firstDate}T00:00:00`);
+    prevDateObj.setDate(prevDateObj.getDate() - 1);
+    const prevDate = prevDateObj.toISOString().slice(0, 10);
+    const base = await api(`/api/accounts/${accountId}/balance?as_of=${encodeURIComponent(prevDate)}`);
+    let running = base.balance;
+    for (const day of dateKeys) {
+      running += dailyStats.get(day).movement;
+      dailyClosing.set(day, running);
+    }
+  }
+
+  const rowParts = [];
+  let currentDay = null;
+  for (const t of txns) {
+    if (t.date !== currentDay) {
+      currentDay = t.date;
+      const stats = dailyStats.get(currentDay) || { movement: 0, count: 0 };
+      const dayBalance = dailyClosing.get(currentDay);
+      const dayClass = (dayBalance ?? stats.movement) < 0 ? "neg" : (dayBalance ?? stats.movement) > 0 ? "pos" : "muted";
+      const dayLabel = accountId
+        ? `Saldo do dia: <b>${fmtMinor(dayBalance ?? 0)}</b>`
+        : `Movimento do dia: <b>${fmtMinor(stats.movement)}</b>`;
+      rowParts.push(`
+        <tr class="txn-day-header">
+          <td colspan="${columnCount}">
+            <div class="txn-day-header-content">
+              <span class="txn-day-date">${fmtDate(currentDay)}</span>
+              <span class="txn-day-total ${dayClass}">${dayLabel}</span>
+              <span class="txn-day-count">${stats.count} lançamento(s)</span>
+            </div>
+          </td>
+        </tr>`);
+    }
+
+    rowParts.push(`
+      <tr data-id="${t.id}">
+        <td class="cell-date">${fmtDate(t.date)}${t.date > today ? ' <span class="badge future">futuro</span>' : ""}</td>
+        <td class="cell-desc">${esc(t.description)}</td>
+        <td class="cell-account">${esc(accountName(t.account_id))}</td>
+        <td class="cell-cat">${catLabel(t)}</td>
+        ${business ? `<td class="cell-doc">${t.doc_issued ? "sim" : "—"}</td>` : ""}
+        <td class="num cell-amount ${t.amount < 0 ? "neg" : "pos"}">${fmtMinor(t.amount)}</td>
+        <td class="cell-recon"><input type="checkbox" data-action="reconcile" ${t.reconciled ? "checked" : ""}></td>
+        <td class="cell-actions">
+          <button class="btn-link" data-action="edit">Editar</button>
+          <button class="btn-link danger" data-action="delete">Excluir</button>
+        </td>
+      </tr>`);
+  }
+
+  const rows = rowParts.join("");
 
   const reconBanner = reconciliation ? `
     <div class="recon-panel">
@@ -476,24 +532,19 @@ async function viewTransactions() {
         (${fmtMinor(reconciliation.pending_total)})</span>
       <span class="${reconciliation.difference === 0 ? "pos" : "neg"}">
         Diferença: <b>${fmtMinor(reconciliation.difference)}</b></span>
+      <div class="recon-actions">
+        <button type="button" class="btn-link" id="reconcile-visible-btn">Conciliar visíveis</button>
+        <button type="button" class="btn-link" id="unreconcile-visible-btn">Desfazer visíveis</button>
+      </div>
     </div>` : "";
 
-  const initialTotal = accountId
-    ? (cache.accounts.find((a) => a.id === accountId)?.initial_balance || 0)
-    : cache.accounts.reduce((sum, a) => sum + (a.initial_balance || 0), 0);
-  const signedMovement = (t) => {
-    if (accountId) {
-      if (t.account_id === accountId) return t.amount;
-      if (t.transfer_account_id === accountId) return -t.amount;
-      return 0;
-    }
-    return t.transfer_account_id != null ? 0 : t.amount;
-  };
   const currentTxns = txns.filter((t) => t.date <= today);
   const futureTxns = txns.filter((t) => t.date > today);
   const movementTotal = currentTxns.reduce((sum, t) => sum + signedMovement(t), 0);
   const futureTotal = futureTxns.reduce((sum, t) => sum + signedMovement(t), 0);
-  const finalBalance = initialTotal + movementTotal;
+  const finalBalance = accountId
+    ? (reconciliation?.balance || 0)
+    : cache.accounts.reduce((sum, a) => sum + (a.balance || 0), 0);
 
   app.innerHTML = `
     <h2>Extrato</h2>
@@ -516,14 +567,14 @@ async function viewTransactions() {
           ${business ? "<th>NF</th>" : ""}
           <th class="num">Valor</th><th>Conc.</th><th></th>
         </tr></thead>
-        <tbody>${rows || `<tr><td colspan="${business ? 8 : 7}" class="placeholder">Sem transações.</td></tr>`}</tbody>
+        <tbody>${rows || `<tr><td colspan="${columnCount}" class="placeholder">Sem transações.</td></tr>`}</tbody>
       </table>
     </div>
     <div class="txn-footer">
       <div class="txn-balance">
         ${accountId ? "Saldo até hoje" : "Total filtrado até hoje"}: <b>${fmtMinor(finalBalance)}</b>
         <span class="txn-balance-detail">
-          saldo inicial ${fmtMinor(initialTotal)} + movimentos ${fmtMinor(movementTotal)}
+          movimentos até hoje ${fmtMinor(movementTotal)}
         </span>
         ${futureTxns.length ? `<span class="txn-future">Lançamentos futuros:
           <b>${fmtMinor(futureTotal)}</b> (${futureTxns.length})</span>` : ""}
@@ -548,6 +599,50 @@ async function viewTransactions() {
     if (form.end.value) p.set("fim", form.end.value);
     location.hash = `#/extrato?${p}`;
   });
+
+  const reconcileVisibleBtn = document.getElementById("reconcile-visible-btn");
+  const unreconcileVisibleBtn = document.getElementById("unreconcile-visible-btn");
+  const setMassButtonsBusy = (isBusy) => {
+    if (reconcileVisibleBtn) reconcileVisibleBtn.disabled = isBusy;
+    if (unreconcileVisibleBtn) unreconcileVisibleBtn.disabled = isBusy;
+  };
+
+  const reconcileVisible = async (targetValue) => {
+    const targets = txns.filter((t) => t.reconciled !== targetValue);
+    if (!targets.length) {
+      toast(targetValue ? "Todos os lançamentos visíveis já estão conciliados." : "Nenhum lançamento visível está conciliado.");
+      return;
+    }
+    const actionLabel = targetValue ? "conciliar" : "desfazer a conciliação de";
+    if (!confirmAction(`Deseja ${actionLabel} ${targets.length} lançamento(s) visível(is)?`)) {
+      return;
+    }
+    setMassButtonsBusy(true);
+    try {
+      for (const t of targets) {
+        await api(`/api/transactions/${t.id}/reconcile`, {
+          method: "POST",
+          body: JSON.stringify({ reconciled: targetValue }),
+        });
+      }
+      toast(targetValue
+        ? `${targets.length} lançamento(s) conciliado(s).`
+        : `${targets.length} lançamento(s) marcado(s) como pendente(s).`);
+      navigate();
+    } catch (err) {
+      toast(err.message, true);
+      navigate();
+    } finally {
+      setMassButtonsBusy(false);
+    }
+  };
+
+  if (reconcileVisibleBtn) {
+    reconcileVisibleBtn.addEventListener("click", () => reconcileVisible(true));
+  }
+  if (unreconcileVisibleBtn) {
+    unreconcileVisibleBtn.addEventListener("click", () => reconcileVisible(false));
+  }
 
   wireCategorySelect(document.getElementById("txn-form").category_id);
 
@@ -702,7 +797,8 @@ function startInlineAccountEdit(tr, a) {
   tr.innerHTML = `
     <td><input data-field="name" value="${esc(a.name)}" maxlength="120"></td>
     <td><select data-field="type">${typeOptions}</select></td>
-    <td class="num"><input data-field="initial_balance" class="num" value="${fmtMinor(a.initial_balance)}"></td>
+    <td class="num ${a.balance < 0 ? "neg" : ""}">${fmtMinor(a.balance)}</td>
+    <td class="num ${a.future < 0 ? "neg" : a.future > 0 ? "pos" : "muted"}">${a.future ? fmtMinor(a.future) : "—"}</td>
     <td class="num"><input data-field="credit_limit" class="num" value="${fmtMinor(a.credit_limit)}"></td>
     <td class="cell-actions">
       <button class="btn-link" data-action="save" title="Ctrl+Enter salva · Esc cancela">Salvar</button>
@@ -716,19 +812,13 @@ function startInlineAccountEdit(tr, a) {
       toast("Nome obrigatório", true);
       return;
     }
-    const initial = parseBRL(tr.querySelector('[data-field="initial_balance"]').value);
     const limit = parseBRL(tr.querySelector('[data-field="credit_limit"]').value) ?? 0;
-    if (initial === null) {
-      toast("Saldo inicial inválido", true);
-      return;
-    }
     try {
       await api(`/api/accounts/${a.id}`, {
         method: "PUT",
         body: JSON.stringify({
           name,
           type: tr.querySelector('[data-field="type"]').value,
-          initial_balance: initial,
           active: a.active,
           credit_limit: limit,
         }),
@@ -745,7 +835,7 @@ function startInlineAccountEdit(tr, a) {
 function startInlineAccountDelete(tr, id) {
   tr.classList.add("editing");
   tr.innerHTML = `
-    <td colspan="4" class="placeholder">Excluir esta conta?</td>
+    <td colspan="5" class="placeholder">Excluir esta conta?</td>
     <td class="cell-actions">
       <button class="btn-link danger" data-action="confirm">Excluir</button>
       <button class="btn-link" data-action="cancel">Cancelar</button>

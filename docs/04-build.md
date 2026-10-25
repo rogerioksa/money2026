@@ -24,6 +24,9 @@ Testes web usam `monkeypatch.chdir(tmp_path)` + `create_app()` + `test_client()`
 ## Gerar o EXE
 
 ```powershell
+money99-build
+# ou (manual):
+npm run build:css
 .\.venv\Scripts\pyinstaller.exe webview_pack.spec --noconfirm --clean
 ```
 
