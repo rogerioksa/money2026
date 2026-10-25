@@ -250,10 +250,19 @@
   }
 
   .grid {
+    --table-col-1: 22%;
+    --table-col-2: 18%;
+    --table-col-3: 14%;
+    --table-col-4: 14%;
+    --table-col-5: 16%;
+    --table-col-6: 16%;
+    --table-col-7: 12%;
+    --table-col-8: 10%;
     @apply w-full min-w-[520px] border-collapse text-sm;
     background-color: var(--money-surface);
     color: var(--money-fg);
     table-layout: fixed;
+    width: 100%;
   }
 
   .grid th,
@@ -263,6 +272,23 @@
     overflow-wrap: anywhere;
     word-break: break-word;
     vertical-align: middle;
+  }
+
+  .grid td.num,
+  .grid th.num,
+  .grid .cell-actions,
+  .grid .cell-date {
+    white-space: nowrap;
+  }
+
+  .grid td.num,
+  .grid th.num {
+    text-align: right;
+  }
+
+  .grid .cell-actions {
+    width: 12%;
+    text-align: right;
   }
 
   .grid tbody tr {
@@ -277,23 +303,29 @@
     white-space: nowrap;
   }
 
-  .grid th:nth-child(1),
-  .grid td:nth-child(1) { width: 22%; }
+  .grid thead th:nth-child(1),
+  .grid tbody td:nth-child(1) { width: var(--table-col-1); }
 
-  .grid th:nth-child(2),
-  .grid td:nth-child(2) { width: 18%; }
+  .grid thead th:nth-child(2),
+  .grid tbody td:nth-child(2) { width: var(--table-col-2); }
 
-  .grid th:nth-child(3),
-  .grid td:nth-child(3) { width: 15%; }
+  .grid thead th:nth-child(3),
+  .grid tbody td:nth-child(3) { width: var(--table-col-3); }
 
-  .grid th:nth-child(4),
-  .grid td:nth-child(4) { width: 15%; }
+  .grid thead th:nth-child(4),
+  .grid tbody td:nth-child(4) { width: var(--table-col-4); }
 
-  .grid th:nth-child(5),
-  .grid td:nth-child(5) { width: 15%; }
+  .grid thead th:nth-child(5),
+  .grid tbody td:nth-child(5) { width: var(--table-col-5); }
 
-  .grid th:nth-child(6),
-  .grid td:nth-child(6) { width: 15%; }
+  .grid thead th:nth-child(6),
+  .grid tbody td:nth-child(6) { width: var(--table-col-6); }
+
+  .grid thead th:nth-child(7),
+  .grid tbody td:nth-child(7) { width: var(--table-col-7); }
+
+  .grid thead th:nth-child(8),
+  .grid tbody td:nth-child(8) { width: var(--table-col-8); }
 
   .grid th {
     @apply text-[11px] font-semibold uppercase tracking-[0.08em];
@@ -493,8 +525,47 @@
   }
 
   .txn-table {
+    --table-col-1: 9%;
+    --table-col-2: 24%;
+    --table-col-3: 16%;
+    --table-col-4: 15%;
+    --table-col-5: 9%;
+    --table-col-6: 12%;
+    --table-col-7: 9%;
+    --table-col-8: 6%;
     @apply min-w-[760px] border-separate border-spacing-0;
+    width: 100%;
+    table-layout: fixed;
   }
+
+  .txn-table thead th,
+  .txn-table tbody td {
+    width: auto;
+  }
+
+  .txn-table thead th:nth-child(1),
+  .txn-table tbody td:nth-child(1) { width: var(--table-col-1); }
+
+  .txn-table thead th:nth-child(2),
+  .txn-table tbody td:nth-child(2) { width: var(--table-col-2); }
+
+  .txn-table thead th:nth-child(3),
+  .txn-table tbody td:nth-child(3) { width: var(--table-col-3); }
+
+  .txn-table thead th:nth-child(4),
+  .txn-table tbody td:nth-child(4) { width: var(--table-col-4); }
+
+  .txn-table thead th:nth-child(5),
+  .txn-table tbody td:nth-child(5) { width: var(--table-col-5); }
+
+  .txn-table thead th:nth-child(6),
+  .txn-table tbody td:nth-child(6) { width: var(--table-col-6); }
+
+  .txn-table thead th:nth-child(7),
+  .txn-table tbody td:nth-child(7) { width: var(--table-col-7); }
+
+  .txn-table thead th:nth-child(8),
+  .txn-table tbody td:nth-child(8) { width: var(--table-col-8); }
 
   .txn-table thead th {
     @apply sticky top-0 z-[2] border-b border-stone-300 bg-brand-50;
