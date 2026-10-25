@@ -182,6 +182,16 @@ function selectOptions(items, selectedId) {
   ).join("");
 }
 
+function syncGridColumns(root = document) {
+  root.querySelectorAll("table.grid").forEach((table) => {
+    const row = table.querySelector("thead tr, tbody tr");
+    const columns = row ? row.children.length : 0;
+    if (columns > 0) {
+      table.style.setProperty("--grid-columns", String(columns));
+    }
+  });
+}
+
 // ---------- componentes ----------
 
 // Abre relatórios dentro do app (overlay com iframe), sem navegador externo.
@@ -265,8 +275,8 @@ function applyScreenShortcut(ev) {
     return;
   }
 
-  const key = ev.key.toLowerCase();
-  const route = location.hash || "#/painel";
+  const key = (ev.key || "").toLowerCase();
+  const route = (location.hash || "#/painel").split("?")[0];
 
   if (key === "n") {
     ev.preventDefault();
@@ -301,10 +311,14 @@ document.addEventListener("keydown", (ev) => {
   const active = ev.target instanceof HTMLElement ? ev.target : null;
   const form = active ? active.closest("form") : null;
 
-  if ((ev.ctrlKey || ev.metaKey) && ev.key === "Enter") {
+  if ((ev.ctrlKey || ev.metaKey) && (ev.key === "Enter" || ev.key === "NumpadEnter")) {
     if (form) {
       ev.preventDefault();
-      form.requestSubmit();
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+      } else {
+        form.querySelector('button[type="submit"]')?.click();
+      }
       return;
     }
     const saveButton = active ? active.closest("[data-action='save']") : null;
@@ -502,30 +516,22 @@ async function viewTransactions() {
     }
   }
 
-  const rowParts = [];
-  let currentDay = null;
+  const dayGroups = [];
+  const groupedByDate = new Map();
   for (const t of txns) {
-    if (t.date !== currentDay) {
-      currentDay = t.date;
-      const stats = dailyStats.get(currentDay) || { movement: 0, count: 0 };
-      const dayBalance = dailyClosing.get(currentDay);
-      const dayClass = (dayBalance ?? stats.movement) < 0 ? "neg" : (dayBalance ?? stats.movement) > 0 ? "pos" : "muted";
-      const dayLabel = accountId
-        ? `Saldo do dia: <b>${fmtMinor(dayBalance ?? 0)}</b>`
-        : `Movimento do dia: <b>${fmtMinor(stats.movement)}</b>`;
-      rowParts.push(`
-        <tr class="txn-day-header">
-          <td colspan="${columnCount}">
-            <div class="txn-day-header-content">
-              <span class="txn-day-date">${fmtDate(currentDay)}</span>
-              <span class="txn-day-total ${dayClass}">${dayLabel}</span>
-              <span class="txn-day-count">${stats.count} lançamento(s)</span>
-            </div>
-          </td>
-        </tr>`);
-    }
+    if (!groupedByDate.has(t.date)) groupedByDate.set(t.date, []);
+    groupedByDate.get(t.date).push(t);
+  }
 
-    rowParts.push(`
+  for (const [dateKey, dayTxns] of [...groupedByDate.entries()].sort((a, b) => b[0].localeCompare(a[0]))) {
+    const stats = dailyStats.get(dateKey) || { movement: 0, count: 0 };
+    const dayBalance = dailyClosing.get(dateKey);
+    const dayClass = (dayBalance ?? stats.movement) < 0 ? "neg" : (dayBalance ?? stats.movement) > 0 ? "pos" : "muted";
+    const dayLabel = accountId
+      ? `Saldo do dia: <b>${fmtMinor(dayBalance ?? 0)}</b>`
+      : `Movimento do dia: <b>${fmtMinor(stats.movement)}</b>`;
+
+    const dayRows = dayTxns.map((t) => `
       <tr data-id="${t.id}">
         <td class="cell-date">${fmtDate(t.date)}${t.date > today ? ' <span class="badge future">futuro</span>' : ""}</td>
         <td class="cell-desc">${esc(t.description)}</td>
@@ -538,10 +544,27 @@ async function viewTransactions() {
           <button class="btn-link" data-action="edit">Editar</button>
           <button class="btn-link danger" data-action="delete">Excluir</button>
         </td>
-      </tr>`);
+      </tr>`).join("");
+
+    dayGroups.push(`
+      <div class="txn-day-card">
+        <div class="txn-day-card-header">
+          <span class="txn-day-date">${fmtDate(dateKey)}</span>
+          <span class="txn-day-total ${dayClass}">${dayLabel}</span>
+          <span class="txn-day-count">${stats.count} lançamento(s)</span>
+        </div>
+        <table class="grid txn-table">
+          <thead><tr>
+            <th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
+            ${business ? "<th>NF</th>" : ""}
+            <th class="num">Valor</th><th>Conc.</th><th></th>
+          </tr></thead>
+          <tbody>${dayRows}</tbody>
+        </table>
+      </div>`);
   }
 
-  const rows = rowParts.join("");
+  const rows = dayGroups.length ? `<div class="txn-day-list">${dayGroups.join("")}</div>` : '<div class="placeholder">Sem transações.</div>';
 
   const reconBanner = reconciliation ? `
     <div class="recon-panel">
@@ -593,14 +616,7 @@ async function viewTransactions() {
     </form>
     ${reconBanner}
     <div class="txn-scroll">
-      <table class="grid txn-table">
-        <thead><tr>
-          <th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
-          ${business ? "<th>NF</th>" : ""}
-          <th class="num">Valor</th><th>Conc.</th><th></th>
-        </tr></thead>
-        <tbody>${rows || `<tr><td colspan="${columnCount}" class="placeholder">Sem transações.</td></tr>`}</tbody>
-      </table>
+      ${rows}
     </div>
     <div class="txn-footer">
       <div class="txn-balance">
@@ -2022,6 +2038,7 @@ async function navigate() {
     await refreshCache();
     wireProfileSelect();
     await handler();
+    syncGridColumns(document);
     requestAnimationFrame(() => focusFirstInput(app));
   } catch (err) {
     app.innerHTML = `<p class="error">Erro: ${esc(err.message)}</p>`;
