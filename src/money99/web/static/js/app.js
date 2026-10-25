@@ -1338,6 +1338,8 @@ async function viewImport() {
   const importPasteField = document.getElementById("import-paste");
   document.getElementById("clear-import-paste-btn").addEventListener("click", () => {
     importPasteField.value = "";
+    const fileInput = document.querySelector('#import-form input[name="file"]');
+    if (fileInput) fileInput.value = "";
     importPasteField.focus();
   });
 
@@ -1370,7 +1372,9 @@ async function viewImport() {
     let filename = "extrato-colado.txt";
 
     try {
-      if (file) {
+      // Texto colado tem prioridade: evita que um arquivo selecionado
+      // anteriormente "sequestre" a pré-visualização ao colar um extrato.
+      if (file && !pasted) {
         // Leitura compatível com webviews antigos (EdgeHTML/IE), que podem
         // não implementar File.prototype.text(); FileReader é amplamente suportado.
         const fileText = await new Promise((resolve, reject) => {
