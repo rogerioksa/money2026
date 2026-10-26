@@ -20,7 +20,16 @@ def _serialize(profile: Profile) -> dict:
         "trade_name": profile.trade_name,
         "opened_on": profile.opened_on,
         "annual_limit": profile.annual_limit,
-        "activity": getattr(profile.activity, "value", profile.activity),
+        "activity": (
+        ",".join(getattr(a, "value", a) for a in profile.activity)
+        if isinstance(profile.activity, (list, tuple))
+        else getattr(profile.activity, "value", profile.activity)
+    ),
+    "activities": [
+        getattr(a, "value", a) for a in (
+            profile.activity if isinstance(profile.activity, (list, tuple)) else [profile.activity]
+        )
+    ],
         "active": profile.active,
     }
 
@@ -30,6 +39,15 @@ def _build(payload: dict, *, profile_id: int | None = None) -> Profile:
     annual_limit = (
         0 if kind == "personal" else int(payload.get("annual_limit", DEFAULT_ANNUAL_LIMIT))
     )
+    activities_payload = payload.get("activities")
+    if activities_payload is None:
+        activity_value = payload.get("activity", "servicos") or "servicos"
+        if isinstance(activity_value, str):
+            activities = [x.strip() for x in activity_value.split(",") if x.strip()]
+        else:
+            activities = activity_value
+    else:
+        activities = activities_payload
     return Profile(
         id=profile_id,
         name=str(payload.get("name", "")),
@@ -39,7 +57,7 @@ def _build(payload: dict, *, profile_id: int | None = None) -> Profile:
         trade_name=str(payload.get("trade_name", "") or ""),
         opened_on=str(payload.get("opened_on", "") or ""),
         annual_limit=annual_limit,
-        activity=payload.get("activity", "servicos") or "servicos",
+        activity=activities or "servicos",
         active=bool(payload.get("active", True)),
     )
 

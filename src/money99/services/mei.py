@@ -141,10 +141,18 @@ def monthly_caderno(repo, year: int, month: int) -> dict:
         raise ValueError("mês inválido")
 
     profile = repo.get_profile(repo.profile_id) if repo.profile_id else None
-    activity = getattr(profile, "activity", None)
-    activity = getattr(activity, "value", activity) or "servicos"
-    if activity not in ACTIVITY_LINES:
-        activity = "servicos"
+    raw_activities = getattr(profile, "activity", None)
+    if isinstance(raw_activities, str):
+        raw_activities = [x.strip() for x in raw_activities.split(",") if x.strip()]
+    if not isinstance(raw_activities, (list, tuple)):
+        raw_activities = [raw_activities]
+    activities = []
+    for item in (raw_activities or ["servicos"]):
+        value = getattr(item, "value", item) or "servicos"
+        if value in ACTIVITY_LINES and value not in activities:
+            activities.append(value)
+    if not activities:
+        activities = ["servicos"]
 
     cat_kind: dict[int | None, str] = {}
     for cat in repo.list_categories():
@@ -210,18 +218,22 @@ def monthly_caderno(repo, year: int, month: int) -> dict:
     without_doc = sales_total - with_doc
     expenses_total = sum(item["amount"] for item in expenses)
 
-    spec = ACTIVITY_LINES[activity]
-    n1, n2, n3 = spec["numbers"]
-    lines = [
-        {"number": n1, "label": spec["line1"], "amount": without_doc},
-        {"number": n2, "label": spec["line2"], "amount": with_doc},
-        {
-            "number": n3,
-            "label": spec["line3"],
-            "amount": sales_total,
-            "total": True,
-        },
-    ]
+    lines = []
+    activity_labels = []
+    for activity in activities:
+        spec = ACTIVITY_LINES[activity]
+        activity_labels.append(spec["label"])
+        n1, n2, n3 = spec["numbers"]
+        lines.extend([
+            {"number": n1, "label": spec["line1"], "amount": without_doc},
+            {"number": n2, "label": spec["line2"], "amount": with_doc},
+            {
+                "number": n3,
+                "label": spec["line3"],
+                "amount": sales_total,
+                "total": True,
+            },
+        ])
 
     return {
         "year": year,
@@ -229,8 +241,10 @@ def monthly_caderno(repo, year: int, month: int) -> dict:
         "month_key": key,
         "month_name": MONTH_NAMES[month - 1],
         "period_label": f"01/{month:02d}/{year} a {last_day:02d}/{month:02d}/{year}",
-        "activity": activity,
-        "activity_label": spec["label"],
+        "activity": activities[0],
+        "activities": activities,
+        "activity_label": " / ".join(activity_labels),
+        "activity_labels": activity_labels,
         "lines": lines,
         "sales": sales,
         "expenses": expenses,

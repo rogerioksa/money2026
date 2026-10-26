@@ -29,6 +29,9 @@ _SCOPED_TABLES = (AccountRow, CategoryRow, TransactionRow, BudgetRow)
 
 
 def _activity_value(activity) -> str:
+    if isinstance(activity, (list, tuple)):
+        values = [getattr(item, "value", item) or "servicos" for item in activity]
+        return ",".join(values) if values else "servicos"
     return getattr(activity, "value", activity) or "servicos"
 
 

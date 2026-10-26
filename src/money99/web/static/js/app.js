@@ -1540,7 +1540,7 @@ async function viewMei() {
     </form>
 
     <h3>Relatório Mensal das Receitas Brutas</h3>
-    <p class="placeholder">Atividade: <b>${esc(MEI_ACTIVITY_LABELS[caderno.activity] || caderno.activity)}</b>
+    <p class="placeholder">Atividades: <b>${esc(caderno.activity_label || caderno.activity)}</b>
       — altere no perfil em <a href="#/config">Config</a>.</p>
     <div class="table-wrap">
       <table class="grid">
@@ -1696,8 +1696,8 @@ async function viewSettings() {
           <option value="business">Empresarial (MEI)</option>
         </select>
       </label>
-      <label>Atividade MEI
-        <select name="activity" id="profile-activity">
+      <label>Atividades MEI
+        <select name="activity" id="profile-activity" multiple size="3">
           <option value="comercio">Comércio</option>
           <option value="industria">Indústria</option>
           <option value="servicos" selected>Serviços</option>
@@ -1809,7 +1809,12 @@ async function viewSettings() {
     profileCancelEditBtn.hidden = false;
     profileForm.name.value = profile.name || "";
     profileForm.kind.value = profile.kind || "personal";
-    profileForm.activity.value = profile.activity || "servicos";
+    const selectedActivities = Array.isArray(profile.activities)
+    ? profile.activities
+    : String(profile.activity || "servicos").split(",");
+  Array.from(profileForm.activity.options).forEach((opt) => {
+    opt.selected = selectedActivities.map(String).includes(opt.value);
+  });
     profileForm.cnpj.value = profile.cnpj || "";
     profileForm.legal_name.value = profile.legal_name || "";
     profileForm.trade_name.value = profile.trade_name || "";
@@ -1846,7 +1851,7 @@ async function viewSettings() {
           trade_name: f.trade_name.value,
           opened_on: f.opened_on.value,
           annual_limit: f.kind.value === "business" ? (parseBRL(f.annual_limit.value) ?? 8100000) : 0,
-          activity: f.activity.value,
+          activities: Array.from(f.activity.selectedOptions).map((opt) => opt.value),
           active: isEditing ? editingProfile.active : true,
         }),
       });
@@ -1864,7 +1869,12 @@ async function viewSettings() {
       fill("profile-legal", data.legal_name);
       fill("profile-trade", data.trade_name);
       fill("profile-opened", data.opened_on);
-      if (data.activity) document.getElementById("profile-activity").value = data.activity;
+      if (data.activity) {
+        const select = document.getElementById("profile-activity");
+        Array.from(select.options).forEach((opt) => {
+          opt.selected = opt.value === String(data.activity);
+        });
+      }
     });
   });
 

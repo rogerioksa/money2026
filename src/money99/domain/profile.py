@@ -14,7 +14,7 @@ class ProfileKind(StrEnum):
 
 
 class MeiActivity(StrEnum):
-    """Atividade principal do MEI (define a página do Caderno do MEI)."""
+    """Atividades do MEI (definem as seções do Caderno do MEI)."""
 
     COMERCIO = "comercio"
     INDUSTRIA = "industria"
@@ -30,7 +30,7 @@ class Profile:
     trade_name: str = ""
     opened_on: str = ""  # ISO AAAA-MM-DD
     annual_limit: int = DEFAULT_ANNUAL_LIMIT  # centavos
-    activity: MeiActivity = MeiActivity.SERVICOS
+    activity: MeiActivity | str | list | tuple = MeiActivity.SERVICOS
     active: bool = True
     id: int | None = field(default=None, compare=False)
 
@@ -38,7 +38,24 @@ class Profile:
         if not self.name.strip():
             raise ValueError("nome do perfil é obrigatório")
         self.kind = ProfileKind(self.kind)
-        self.activity = MeiActivity(self.activity or MeiActivity.SERVICOS)
+        raw = self.activity
+        if isinstance(raw, str):
+            items = [x.strip() for x in raw.split(",") if x.strip()]
+        elif isinstance(raw, (list, tuple)):
+            items = list(raw)
+        else:
+            items = [raw]
+        normalized: list[MeiActivity] = []
+        seen: set[MeiActivity] = set()
+        for item in (items or [MeiActivity.SERVICOS]):
+            value = MeiActivity(item)
+            if value not in seen:
+                seen.add(value)
+                normalized.append(value)
+        if not normalized:
+            normalized = [MeiActivity.SERVICOS]
+        self.activity = normalized
+        self.activities = list(normalized)
         if self.kind == ProfileKind.PERSONAL:
             self.annual_limit = 0
         elif self.annual_limit is None:
