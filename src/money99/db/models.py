@@ -91,6 +91,16 @@ class BudgetRow(Base):
     planned: Mapped[int] = mapped_column(Integer)
 
 
+class AnnualBudgetRow(Base):
+    __tablename__ = "annual_budgets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id"), nullable=True)
+    year: Mapped[int] = mapped_column(Integer)
+    category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
+    annual_planned: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class UserRow(Base):
     __tablename__ = "users"
 

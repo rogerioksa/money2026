@@ -1031,22 +1031,29 @@ async function viewBudget() {
   const month = Number(params.get("mes")) || now.getMonth() + 1;
 
   const rows = await api(`/api/budgets?year=${year}&month=${month}`);
+  const alerts = await api(`/api/budgets/alerts?year=${year}&month=${month}`).catch(() => ({ monthly: [], annual: [] }));
+  const annualRows = await api(`/api/budgets?year=${year}`).catch(() => []);
+  const accountRows = await api(`/api/budgets/accounts?year=${year}&month=${month}`).catch(() => []);
   const expenseCats = cache.categories.filter((c) => c.kind === "expense");
 
   const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun",
     "jul", "ago", "set", "out", "nov", "dez"];
 
+  const monthlyAlertIds = new Set((alerts.monthly || []).map((a) => a.category_id));
   const body = rows.map((r) => {
     const pct = r.planned > 0 ? Math.min(100, Math.round((r.actual / r.planned) * 100)) : 0;
     const over = r.planned > 0 && r.actual > r.planned;
+    const status = monthlyAlertIds.has(r.category_id) ? "Estouro mensal" : (pct >= 80 ? "Atenção" : "OK");
     return `
       <tr data-cat="${r.category_id}">
         <td>${esc(r.category)}</td>
+        <td class="num">${fmtMinor(r.annual_planned || 0)}</td>
         <td class="num">${fmtMinor(r.planned)}</td>
         <td class="num">${fmtMinor(r.actual)}</td>
         <td class="num ${r.remaining < 0 ? "neg" : "pos"}">${fmtMinor(r.remaining)}</td>
         <td class="bar-cell">
           <div class="bar"><div class="bar-fill ${over ? "over" : ""}" style="width:${pct}%"></div></div>
+          <span class="muted">${esc(status)}</span>
         </td>
         <td class="cell-actions">
           <button class="btn-link" data-action="edit">Editar</button>
@@ -1069,17 +1076,60 @@ async function viewBudget() {
     </form>
     <div class="table-wrap">
       <table class="grid">
-        <thead><tr><th>Categoria</th><th class="num">Planejado</th><th class="num">Realizado</th>
+        <thead><tr><th>Categoria</th><th class="num">Anual</th><th class="num">Mensal</th><th class="num">Realizado</th>
           <th class="num">Saldo</th><th></th><th></th></tr></thead>
-        <tbody>${body || '<tr><td colspan="6" class="placeholder">Sem orçamento ou gastos neste mês.</td></tr>'}</tbody>
+        <tbody>${body || '<tr><td colspan="7" class="placeholder">Sem orçamento ou gastos neste mês.</td></tr>'}</tbody>
       </table>
     </div>
-    <h3>Adicionar ou atualizar valor planejado</h3>
+    <h3>Definir orçamento anual</h3>
     <form id="budget-form" class="form-row form-flex">
       <label>Categoria <select name="category_id">${selectOptions(expenseCats)}</select></label>
-      <label>Planejado <input name="planned" value="0,00" class="num"></label>
+      <label>Valor anual <input name="annual_planned" value="0,00" class="num"></label>
       <button type="submit">Salvar</button>
-    </form>`;
+    </form>
+    <h3>Visão anual por categoria</h3>
+    <div id="annual-budget"></div>`;
+
+  const annualBody = annualRows.map((r) => `
+    <tr>
+      <td>${esc(r.category)}</td>
+      <td class="num">${fmtMinor(r.annual_planned)}</td>
+      <td class="num">${fmtMinor(r.annual_actual)}</td>
+      <td class="num ${r.annual_remaining < 0 ? "neg" : "pos"}">${fmtMinor(r.annual_remaining)}</td>
+    </tr>`).join("");
+  const annualContainer = document.getElementById("annual-budget");
+  if (annualContainer) {
+    annualContainer.innerHTML = `
+      <div class="table-wrap">
+        <table class="grid">
+          <thead><tr><th>Categoria</th><th class="num">Planejado</th><th class="num">Realizado</th>
+            <th class="num">Saldo</th></tr></thead>
+          <tbody>${annualBody || '<tr><td colspan="4" class="placeholder">Sem orçamento anual.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+  }
+  const accountBody = accountRows.map((r) => `
+    <tr>
+      <td>${esc(r.account)}</td>
+      <td class="num">${fmtMinor(r.actual)}</td>
+    </tr>`).join("");
+  const accountContainer = document.createElement("div");
+  accountContainer.innerHTML = `
+    <h3>Gastos por conta (mês)</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Conta</th><th class="num">Realizado</th></tr></thead>
+        <tbody>${accountBody || '<tr><td colspan="2" class="placeholder">Sem gastos.</td></tr>'}</tbody>
+      </table>
+    </div>`;
+  const annualContainerEl = document.getElementById("annual-budget");
+  if (annualContainerEl && annualContainerEl.parentNode) {
+    annualContainerEl.parentNode.insertBefore(accountContainer, annualContainerEl);
+  }
+
+  if (alerts.monthly && alerts.monthly.length) {
+    toast(`Orçamento: ${alerts.monthly.length} categoria(s) estouraram no mês.`, true);
+  }
 
   document.getElementById("budget-nav").addEventListener("submit", (ev) => {
     ev.preventDefault();
@@ -1092,17 +1142,17 @@ async function viewBudget() {
   document.getElementById("budget-form").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const f = ev.target;
-    const planned = parseBRL(f.planned.value);
-    if (planned === null || planned < 0) { toast("Valor inválido", true); return; }
+    const annualPlanned = parseBRL(f.annual_planned.value);
+    if (annualPlanned === null || annualPlanned < 0) { toast("Valor inválido", true); return; }
     try {
       await api("/api/budgets", {
         method: "PUT",
         body: JSON.stringify({
-          year, month, category_id: Number(f.category_id.value), planned,
+          year, category_id: Number(f.category_id.value), annual_planned: annualPlanned,
         }),
       });
       navigate();
-      toast("Orçamento salvo!");
+      toast("Orçamento anual salvo!");
     } catch (err) { toast(err.message, true); }
   });
 
@@ -1119,7 +1169,8 @@ function startInlineBudgetEdit(tr, row, year, month) {
   tr.classList.add("editing");
   tr.innerHTML = `
     <td>${esc(row.category)}</td>
-    <td class="num"><input data-field="planned" class="num" value="${fmtMinor(row.planned)}"></td>
+    <td class="num"><input data-field="annual_planned" class="num" value="${fmtMinor(row.annual_planned || 0)}"></td>
+    <td class="num">${fmtMinor(row.planned)}</td>
     <td class="num">${fmtMinor(row.actual)}</td>
     <td class="num ${row.remaining < 0 ? "neg" : "pos"}">${fmtMinor(row.remaining)}</td>
     <td class="bar-cell"></td>
@@ -1130,15 +1181,15 @@ function startInlineBudgetEdit(tr, row, year, month) {
   focusFirstInput(tr);
   tr.querySelector('[data-action="cancel"]').addEventListener("click", () => navigate());
   tr.querySelector('[data-action="save"]').addEventListener("click", async () => {
-    const planned = parseBRL(tr.querySelector('[data-field="planned"]').value);
-    if (planned === null || planned < 0) { toast("Valor inválido", true); return; }
+    const annualPlanned = parseBRL(tr.querySelector('[data-field="annual_planned"]').value);
+    if (annualPlanned === null || annualPlanned < 0) { toast("Valor inválido", true); return; }
     try {
       await api("/api/budgets", {
         method: "PUT",
-        body: JSON.stringify({ year, month, category_id: row.category_id, planned }),
+        body: JSON.stringify({ year, category_id: row.category_id, annual_planned: annualPlanned }),
       });
       await navigate();
-      toast("Orçamento salvo!");
+      toast("Orçamento anual salvo!");
     } catch (err) { toast(err.message, true); }
   });
 }

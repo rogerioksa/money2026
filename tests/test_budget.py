@@ -46,7 +46,7 @@ def test_budget_report(tmp_path):
     account = repo.add_account(Account(name="Banco", type="bank"))
     food = {c.name: c for c in repo.list_categories(kind="expense")}["Alimentação"]
 
-    repo.set_budget(2026, 10, food.id, 8000)
+    repo.set_annual_budget(2026, food.id, 96000)
     repo.add_transaction(Transaction(
         date="2026-10-05", account_id=account.id, amount=-5000, category_id=food.id,
     ))
@@ -77,7 +77,7 @@ def test_budget_api_roundtrip(client):
     account = client.post("/api/accounts", json={"name": "Banco", "type": "bank"}).get_json()
 
     res = client.put("/api/budgets", json={
-        "year": 2026, "month": 10, "category_id": food["id"], "planned": 8000,
+        "year": 2026, "category_id": food["id"], "annual_planned": 96000,
     })
     assert res.status_code == 200
 
@@ -89,10 +89,12 @@ def test_budget_api_roundtrip(client):
     res = client.get("/api/budgets?year=2026&month=10")
     assert res.status_code == 200
     row = next(r for r in res.get_json() if r["category_id"] == food["id"])
-    assert row == {
-        "category_id": food["id"], "category": "Alimentação",
-        "planned": 8000, "actual": 5000, "remaining": 3000,
-    }
+    assert row["category_id"] == food["id"]
+    assert row["category"] == "Alimentação"
+    assert row["planned"] == 8000
+    assert row["actual"] == 5000
+    assert row["remaining"] == 3000
+    assert row["annual_planned"] == 96000
 
 
 def test_budget_api_validation(client):
@@ -101,5 +103,5 @@ def test_budget_api_validation(client):
         "year": 2026, "month": 10, "category_id": 999, "planned": 100,
     }).status_code == 404
     assert client.put("/api/budgets", json={
-        "year": 2026, "month": 10, "category_id": 1, "planned": -5,
+        "year": 2026, "category_id": 1, "annual_planned": -5,
     }).status_code == 400

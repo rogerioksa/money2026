@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from money99.db.models import (
     AccountRow,
+    AnnualBudgetRow,
     BudgetRow,
     CategoryRow,
     ProfileRow,
@@ -382,6 +383,38 @@ class Repository:
         stmt = select(BudgetRow).where(BudgetRow.year == year, BudgetRow.month == month)
         stmt = self._scope(stmt, BudgetRow)
         return list(self.session.scalars(stmt))
+
+    # --- orçamentos anuais ---
+    def set_annual_budget(self, year: int, category_id: int, annual_planned: int) -> None:
+        stmt = select(AnnualBudgetRow).where(
+            AnnualBudgetRow.year == year,
+            AnnualBudgetRow.category_id == category_id,
+        )
+        stmt = self._scope(stmt, AnnualBudgetRow)
+        row = self.session.scalar(stmt)
+        if row is None:
+            self.session.add(AnnualBudgetRow(
+                profile_id=self.profile_id,
+                year=year,
+                category_id=category_id,
+                annual_planned=annual_planned,
+            ))
+        else:
+            row.annual_planned = annual_planned
+
+    def list_annual_budget(self, year: int) -> list[AnnualBudgetRow]:
+        stmt = select(AnnualBudgetRow).where(AnnualBudgetRow.year == year)
+        stmt = self._scope(stmt, AnnualBudgetRow)
+        return list(self.session.scalars(stmt))
+
+    def get_annual_budget(self, year: int, category_id: int) -> int:
+        stmt = select(AnnualBudgetRow.annual_planned).where(
+            AnnualBudgetRow.year == year,
+            AnnualBudgetRow.category_id == category_id,
+        )
+        stmt = self._scope(stmt, AnnualBudgetRow)
+        value = self.session.scalar(stmt)
+        return int(value or 0)
 
     # --- usuários ---
 
