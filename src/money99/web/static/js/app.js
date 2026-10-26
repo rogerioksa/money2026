@@ -1709,6 +1709,7 @@ async function viewSettings() {
           <button type="button" data-action="lookup-cnpj" title="Buscar dados na Receita">Buscar</button>
         </span>
       </label>
+      <div id="cnpj-cnae-info" class="muted" style="grid-column: 1 / -1;"></div>
       <label>Razão social <input name="legal_name" id="profile-legal" maxlength="200"></label>
       <label>Nome fantasia <input name="trade_name" id="profile-trade" maxlength="200"></label>
       <label>Abertura <input type="date" name="opened_on" id="profile-opened"></label>
@@ -1816,6 +1817,22 @@ async function viewSettings() {
     opt.selected = selectedActivities.map(String).includes(opt.value);
   });
     profileForm.cnpj.value = profile.cnpj || "";
+    const cnaeInfo = document.getElementById("cnpj-cnae-info");
+    if (cnaeInfo) cnaeInfo.innerHTML = "";
+    const cnpjDigits = String(profile.cnpj || "").replace(/\\D/g, "");
+    if (cnpjDigits.length === 14) {
+      api(`/api/cnpj/${cnpjDigits}`).then((data) => {
+        const info = document.getElementById("cnpj-cnae-info");
+        if (!info) return;
+        const primary = data.cnae ? `${data.cnae} — ${data.cnae_description || ""}` : "—";
+        const secondary = (data.secondary_cnaes || []).map((item) => `${item.codigo} — ${item.descricao || ""}`).join("; ") || "nenhum";
+        const check = data.activity_check || {};
+        const status = !check.ok
+          ? "Verificação indisponível"
+          : (check.all_allowed ? "Apto ao MEI (Anexo XI)" : `Não apto: ${(check.disallowed_cnaes || []).join(", ")}`);
+        info.innerHTML = `CNAE principal: ${esc(primary)}<br>CNAEs secundários: ${esc(secondary)}<br>Status MEI: ${esc(status)}`;
+      }).catch(() => {});
+    }
     profileForm.legal_name.value = profile.legal_name || "";
     profileForm.trade_name.value = profile.trade_name || "";
     profileForm.opened_on.value = profile.opened_on || "";
@@ -1869,6 +1886,16 @@ async function viewSettings() {
       fill("profile-legal", data.legal_name);
       fill("profile-trade", data.trade_name);
       fill("profile-opened", data.opened_on);
+      const info = document.getElementById("cnpj-cnae-info");
+      if (info) {
+        const primary = data.cnae ? `${data.cnae} — ${data.cnae_description || ""}` : "—";
+        const secondary = (data.secondary_cnaes || []).map((item) => `${item.codigo} — ${item.descricao || ""}`).join("; ") || "nenhum";
+        const check = data.activity_check || {};
+        const status = !check.ok
+          ? "Verificação indisponível"
+          : (check.all_allowed ? "Apto ao MEI (Anexo XI)" : `Não apto: ${(check.disallowed_cnaes || []).join(", ")}`);
+        info.innerHTML = `CNAE principal: ${esc(primary)}<br>CNAEs secundários: ${esc(secondary)}<br>Status MEI: ${esc(status)}`;
+      }
       if (data.activity) {
         const select = document.getElementById("profile-activity");
         Array.from(select.options).forEach((opt) => {
