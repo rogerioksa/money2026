@@ -60,6 +60,10 @@ def test_fetch_cnpj_maps_brasilapi_payload(monkeypatch):
         "urlopen",
         lambda request, timeout: FakeResponse(body.getvalue()),
     )
+    monkeypatch.setattr(
+        "money99.services.anexo_xi.allowed_cnaes",
+        lambda force=False: {"4711301"},
+    )
     data = fetch_cnpj("11.222.333/0001-81")
     assert data == {
         "cnpj": "11222333000181",
@@ -71,7 +75,16 @@ def test_fetch_cnpj_maps_brasilapi_payload(monkeypatch):
         "state": "SP",
         "cnae": "4711301",
         "cnae_description": "Comercio varejista",
+        "secondary_cnaes": [],
         "activity": "comercio",
+        "activity_check": {
+            "ok": True,
+            "checked_cnaes": ["4711301"],
+            "allowed_cnaes": ["4711301"],
+            "disallowed_cnaes": [],
+            "all_allowed": True,
+            "reference_month": "2026-10",
+        },
     }
 
 

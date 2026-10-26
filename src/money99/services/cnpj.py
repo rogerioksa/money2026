@@ -73,7 +73,17 @@ def fetch_cnpj(value: str | None, *, timeout: float = 8.0) -> dict:
     except json.JSONDecodeError as exc:
         raise CnpjLookupError("Resposta inválida do serviço de CNPJ") from exc
 
-    return {
+    secondary = []
+    for item in data.get("cnaes_secundarios") or []:
+        if isinstance(item, dict):
+            secondary.append({
+                "codigo": str(item.get("codigo") or "").strip(),
+                "descricao": str(item.get("descricao") or "").strip(),
+            })
+        else:
+            secondary.append({"codigo": str(item).strip(), "descricao": ""})
+
+    result = {
         "cnpj": digits,
         "legal_name": str(data.get("razao_social") or "").strip(),
         "trade_name": str(data.get("nome_fantasia") or "").strip(),
@@ -83,5 +93,13 @@ def fetch_cnpj(value: str | None, *, timeout: float = 8.0) -> dict:
         "state": str(data.get("uf") or "").strip(),
         "cnae": str(data.get("cnae_fiscal") or "").strip(),
         "cnae_description": str(data.get("cnae_fiscal_descricao") or "").strip(),
+        "secondary_cnaes": secondary,
         "activity": infer_activity(data.get("cnae_fiscal")),
     }
+    try:
+        from money99.services.anexo_xi import check_cnpj_activities
+
+        result["activity_check"] = check_cnpj_activities(result)
+    except Exception:  # pragma: no cover - rede indisponível não deve quebrar consulta
+        result["activity_check"] = {"ok": False, "error": "verificação indisponível"}
+    return result

@@ -1966,7 +1966,15 @@ async function lookupCnpj(cnpj, apply) {
   try {
     const data = await api(`/api/cnpj/${digits}`);
     apply(data);
-    toast("Dados do CNPJ carregados");
+    if (data.activity_check) {
+      if (data.activity_check.all_allowed === false && Array.isArray(data.activity_check.disallowed_cnaes) && data.activity_check.disallowed_cnaes.length) {
+        toast(`Atenção: CNAE(s) não permitidos ao MEI (Anexo XI): ${data.activity_check.disallowed_cnaes.join(", ")}`, true);
+      } else if (data.activity_check.ok) {
+        toast("Dados do CNPJ carregados (atividades permitidas ao MEI)");
+      }
+    } else {
+      toast("Dados do CNPJ carregados");
+    }
   } catch (err) {
     toast(err.message, true);
   }
