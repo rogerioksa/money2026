@@ -1383,6 +1383,82 @@ async function viewReports() {
   drawBars(document.getElementById("bars"), spending);
 }
 
+// ---------- vista: CAR/CAP ----------
+async function viewTitles() {
+  const items = await api("/api/titles");
+  const rows = items.map((t) => `
+    <tr data-id="${t.id}">
+      <td>${t.type === "receivable" ? "A receber" : "A pagar"}</td>
+      <td>${esc(t.description)}</td>
+      <td>${esc(t.favorecido || "—")}</td>
+      <td>${fmtDate(t.due_date)}</td>
+      <td class="num">${fmtMinor(t.amount)}</td>
+      <td class="${t.status === "paid" ? "pos" : t.status === "cancelled" ? "muted" : "neg"}">${esc(t.status)}</td>
+      <td class="cell-actions">
+        <button class="btn-link" data-action="edit">Editar</button>
+        <button class="btn-link danger" data-action="delete">Excluir</button>
+      </td>
+    </tr>`).join("");
+
+  app.innerHTML = `
+    <h2>Contas a pagar / receber (CAR/CAP)</h2>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Tipo</th><th>Descrição</th><th>Favorecido</th><th>Vencimento</th>
+          <th class="num">Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" class="placeholder">Sem títulos.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <h3>Novo título</h3>
+    <form id="title-form" class="form-row form-flex">
+      <label>Tipo
+        <select name="type">
+          <option value="payable">A pagar</option>
+          <option value="receivable">A receber</option>
+        </select>
+      </label>
+      <label>Descrição <input name="description" required maxlength="240"></label>
+      <label>Favorecido <input name="favorecido" maxlength="160"></label>
+      <label>Vencimento <input type="date" name="due_date" required></label>
+      <label>Valor <input name="amount" class="num" value="0,00" required></label>
+      <button type="submit">Salvar</button>
+    </form>`;
+
+  document.getElementById("title-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    const amount = parseBRL(f.amount.value);
+    if (amount === null || amount <= 0) { toast("Valor inválido", true); return; }
+    try {
+      await api("/api/titles", {
+        method: "POST",
+        body: JSON.stringify({
+          type: f.type.value,
+          description: f.description.value,
+          favorecido: f.favorecido.value,
+          due_date: f.due_date.value,
+          amount,
+        }),
+      });
+      navigate();
+      toast("Título salvo!");
+    } catch (err) { toast(err.message, true); }
+  });
+
+  app.querySelectorAll("tr[data-id]").forEach((tr) => {
+    const id = Number(tr.dataset.id);
+    const title = items.find((t) => t.id === id);
+    tr.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+      if (!window.confirm("Excluir título?")) return;
+      try {
+        await api(`/api/titles/${id}`, { method: "DELETE" });
+        navigate();
+        toast("Título excluído");
+      } catch (err) { toast(err.message, true); }
+    });
+  });
+}
+
 // ---------- vista: importar ----------
 
 async function viewImport() {
@@ -2112,6 +2188,7 @@ const routes = {
   "#/orcamento": viewBudget,
   "#/relatorios": viewReports,
   "#/mei": viewMei,
+  "#/carcap": viewTitles,
   "#/importar": viewImport,
   "#/config": viewSettings,
 };

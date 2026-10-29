@@ -80,6 +80,24 @@ class SplitRow(Base):
     transaction: Mapped[TransactionRow] = relationship(back_populates="splits")
 
 
+class TitleRow(Base):
+    __tablename__ = "titles"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id"), nullable=True)
+    type: Mapped[str] = mapped_column(String(12), default="payable")  # receivable | payable
+    description: Mapped[str] = mapped_column(String(240), default="")
+    amount: Mapped[int] = mapped_column(Integer)  # centavos
+    due_date: Mapped[str] = mapped_column(String(10))  # ISO
+    status: Mapped[str] = mapped_column(String(12), default="open")  # open | paid | cancelled
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    favorecido: Mapped[str] = mapped_column(String(160), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    paid_date: Mapped[str] = mapped_column(String(10), default="")
+    paid_amount: Mapped[int] = mapped_column(Integer, default=0)
+
+
 class BudgetRow(Base):
     __tablename__ = "budgets"
 

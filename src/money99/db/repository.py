@@ -19,11 +19,13 @@ from money99.db.models import (
     CategoryRow,
     ProfileRow,
     SplitRow,
+    TitleRow,
     TransactionRow,
     UserRow,
 )
 from money99.domain.account import Account, AccountType
 from money99.domain.profile import Profile, ProfileKind
+from money99.domain.title import Title
 from money99.domain.transaction import Split, Transaction
 
 _SCOPED_TABLES = (AccountRow, CategoryRow, TransactionRow, BudgetRow)
@@ -415,6 +417,82 @@ class Repository:
         stmt = self._scope(stmt, AnnualBudgetRow)
         value = self.session.scalar(stmt)
         return int(value or 0)
+
+    # --- títulos (CAR/CAP) ---
+    def list_titles(self, *, type: str | None = None, status: str | None = None) -> list[Title]:
+        stmt = select(TitleRow).order_by(TitleRow.due_date, TitleRow.id)
+        stmt = self._scope(stmt, TitleRow)
+        if type:
+            stmt = stmt.where(TitleRow.type == type)
+        if status:
+            stmt = stmt.where(TitleRow.status == status)
+        return [self._to_title(row) for row in self.session.scalars(stmt)]
+
+    def get_title(self, title_id: int) -> Title:
+        row = self.session.get(TitleRow, title_id)
+        if row is None:
+            raise LookupError(f"título {title_id} não encontrado")
+        return self._to_title(row)
+
+    def add_title(self, title: Title) -> Title:
+        row = TitleRow(
+            profile_id=self.profile_id,
+            type=title.type,
+            description=title.description,
+            amount=title.amount,
+            due_date=title.due_date,
+            status=title.status,
+            account_id=title.account_id,
+            category_id=title.category_id,
+            favorecido=title.favorecido,
+            notes=title.notes,
+            paid_date=title.paid_date,
+            paid_amount=title.paid_amount,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return self._to_title(row)
+
+    def update_title(self, title: Title) -> Title:
+        if title.id is None:
+            raise ValueError("título sem id")
+        row = self.session.get(TitleRow, title.id)
+        if row is None:
+            raise LookupError(f"título {title.id} não encontrado")
+        row.type = title.type
+        row.description = title.description
+        row.amount = title.amount
+        row.due_date = title.due_date
+        row.status = title.status
+        row.account_id = title.account_id
+        row.category_id = title.category_id
+        row.favorecido = title.favorecido
+        row.notes = title.notes
+        row.paid_date = title.paid_date
+        row.paid_amount = title.paid_amount
+        return self._to_title(row)
+
+    def delete_title(self, title_id: int) -> None:
+        row = self.session.get(TitleRow, title_id)
+        if row is None:
+            raise LookupError(f"título {title_id} não encontrado")
+        self.session.delete(row)
+
+    def _to_title(self, row: TitleRow) -> Title:
+        return Title(
+            id=row.id,
+            type=row.type,
+            description=row.description or "",
+            amount=row.amount or 0,
+            due_date=row.due_date or "",
+            status=row.status or "open",
+            account_id=row.account_id,
+            category_id=row.category_id,
+            favorecido=row.favorecido or "",
+            notes=row.notes or "",
+            paid_date=row.paid_date or "",
+            paid_amount=row.paid_amount or 0,
+        )
 
     # --- usuários ---
 
