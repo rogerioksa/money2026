@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date
+import calendar
+from datetime import date, timedelta
 
 from money99.db.repository import Repository
 
@@ -69,6 +70,50 @@ def cash_flow(repo: Repository, start: str, end: str) -> list[dict]:
         bucket = months[key]
         bucket["net"] = bucket["inflow"] - bucket["outflow"]
         result.append(bucket)
+    return result
+
+
+def _add_months(year: int, month: int, delta: int) -> tuple[int, int]:
+    total = (year * 12 + (month - 1)) + delta
+    return total // 12, (total % 12) + 1
+
+
+def cash_flow_forecast(repo: Repository, months: int = 12) -> list[dict]:
+    """Projeção de fluxo de caixa para os próximos `months` meses."""
+    if months < 1:
+        months = 1
+    if months > 24:
+        months = 24
+    today = date.today()
+    start_year, start_month = today.year, today.month
+    first_day = date(start_year, start_month, 1)
+    prev_day = first_day - timedelta(days=1)
+    starting_balance = net_worth(repo, as_of=prev_day.isoformat())["total"]
+
+    result = []
+    cumulative = 0
+    for i in range(months):
+        y, m = _add_months(start_year, start_month, i)
+        start = f"{y:04d}-{m:02d}-01"
+        end = f"{y:04d}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
+        inflow = 0
+        outflow = 0
+        for txn in repo.list_transactions(start=start, end=end):
+            if txn.transfer_account_id is not None:
+                continue
+            if txn.amount >= 0:
+                inflow += txn.amount
+            else:
+                outflow += abs(txn.amount)
+        net = inflow - outflow
+        cumulative += net
+        result.append({
+            "month": f"{y:04d}-{m:02d}",
+            "inflow": inflow,
+            "outflow": outflow,
+            "net": net,
+            "projected_balance": starting_balance + cumulative,
+        })
     return result
 
 

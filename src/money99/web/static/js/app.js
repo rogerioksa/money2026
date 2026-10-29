@@ -1292,10 +1292,11 @@ async function viewReports() {
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
 
-  const [spending, worth, flow] = await Promise.all([
+  const [spending, worth, flow, forecast] = await Promise.all([
     api(`/api/reports/spending?start=${start}&end=${end}`),
     api("/api/reports/net-worth"),
     api(`/api/reports/cash-flow?start=${start}&end=${end}`),
+    api("/api/reports/forecast?months=12"),
   ]);
 
   const spendRows = spending.map((r) => `
@@ -1308,6 +1309,14 @@ async function viewReports() {
       <td class="num pos">${fmtMinor(f.inflow)}</td>
       <td class="num neg">${fmtMinor(f.outflow)}</td>
       <td class="num ${f.net < 0 ? "neg" : "pos"}">${fmtMinor(f.net)}</td>
+    </tr>`).join("");
+  const forecastRows = forecast.map((f) => `
+    <tr>
+      <td>${esc(f.month)}</td>
+      <td class="num pos">${fmtMinor(f.inflow)}</td>
+      <td class="num neg">${fmtMinor(f.outflow)}</td>
+      <td class="num ${f.net < 0 ? "neg" : "pos"}">${fmtMinor(f.net)}</td>
+      <td class="num">${fmtMinor(f.projected_balance)}</td>
     </tr>`).join("");
 
   app.innerHTML = `
@@ -1348,6 +1357,15 @@ async function viewReports() {
         <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Saídas</th>
           <th class="num">Saldo</th></tr></thead>
         <tbody>${flowRows || '<tr><td colspan="4" class="placeholder">Sem movimentos.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h3>Projeção de fluxo de caixa (12 meses)</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Saídas</th>
+          <th class="num">Saldo do mês</th><th class="num">Saldo projetado</th></tr></thead>
+        <tbody>${forecastRows || '<tr><td colspan="5" class="placeholder">Sem projeção.</td></tr>'}</tbody>
       </table>
     </div>
     <canvas id="bars" width="800" height="180"></canvas>`;
