@@ -1385,6 +1385,9 @@ async function viewReports() {
 
 // ---------- vista: CAR/CAP ----------
 async function viewTitles() {
+  const typeFilter = "all";
+  const statusFilter = "all";
+  const alerts = await api("/api/titles/alerts").catch(() => ({ overdue: [], upcoming: [] }));
   const items = await api("/api/titles");
   const rows = items.map((t) => `
     <tr data-id="${t.id}">
@@ -1393,8 +1396,9 @@ async function viewTitles() {
       <td>${esc(t.favorecido || "—")}</td>
       <td>${fmtDate(t.due_date)}</td>
       <td class="num">${fmtMinor(t.amount)}</td>
-      <td class="${t.status === "paid" ? "pos" : t.status === "cancelled" ? "muted" : "neg"}">${esc(t.status)}</td>
+      <td class="${t.status === "paid" ? "pos" : t.status === "cancelled" ? "muted" : (t.due_date < new Date().toISOString().slice(0,10) ? "neg" : "")}">${esc(t.status)}</td>
       <td class="cell-actions">
+        ${t.status === "open" ? '<button class="btn-link" data-action="pay">Pagar</button>' : ""}
         <button class="btn-link" data-action="edit">Editar</button>
         <button class="btn-link danger" data-action="delete">Excluir</button>
       </td>
@@ -1402,6 +1406,8 @@ async function viewTitles() {
 
   app.innerHTML = `
     <h2>Contas a pagar / receber (CAR/CAP)</h2>
+    ${alerts.overdue.length ? `<p class="error">Títulos vencidos: ${alerts.overdue.length}</p>` : ""}
+    ${alerts.upcoming.length ? `<p class="placeholder">Vencendo em 7 dias: ${alerts.upcoming.length}</p>` : ""}
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Tipo</th><th>Descrição</th><th>Favorecido</th><th>Vencimento</th>
@@ -1421,6 +1427,9 @@ async function viewTitles() {
       <label>Favorecido <input name="favorecido" maxlength="160"></label>
       <label>Vencimento <input type="date" name="due_date" required></label>
       <label>Valor <input name="amount" class="num" value="0,00" required></label>
+      <label>Conta (opcional)
+        <select name="account_id">${selectOptions(cache.accounts)}</select>
+      </label>
       <button type="submit">Salvar</button>
     </form>`;
 
@@ -1438,6 +1447,7 @@ async function viewTitles() {
           favorecido: f.favorecido.value,
           due_date: f.due_date.value,
           amount,
+          account_id: f.account_id.value || null,
         }),
       });
       navigate();
@@ -1448,6 +1458,19 @@ async function viewTitles() {
   app.querySelectorAll("tr[data-id]").forEach((tr) => {
     const id = Number(tr.dataset.id);
     const title = items.find((t) => t.id === id);
+    const payBtn = tr.querySelector('[data-action="pay"]');
+    if (payBtn) {
+      payBtn.addEventListener("click", async () => {
+        try {
+          await api(`/api/titles/${id}/pay`, {
+            method: "POST",
+            body: JSON.stringify({ paid_date: new Date().toISOString().slice(0, 10) }),
+          });
+          navigate();
+          toast("Título pago!");
+        } catch (err) { toast(err.message, true); }
+      });
+    }
     tr.querySelector('[data-action="delete"]').addEventListener("click", async () => {
       if (!window.confirm("Excluir título?")) return;
       try {

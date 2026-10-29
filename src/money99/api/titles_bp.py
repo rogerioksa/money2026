@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from flask import Blueprint, jsonify, request
 
 from money99.api._common import error, get_repo
 from money99.domain.title import Title
+from money99.domain.transaction import Transaction
 
 bp = Blueprint("titles", __name__, url_prefix="/api/titles")
 
@@ -106,6 +109,68 @@ def update_title(title_id: int):
     except (ValueError, TypeError) as exc:
         return error(str(exc))
     return jsonify(_serialize(updated))
+
+
+@bp.post("/<int:title_id>/pay")
+def pay_title(title_id: int):
+    payload = request.get_json(silent=True) or {}
+    repo = get_repo()
+    try:
+        title = repo.get_title(title_id)
+    except LookupError as exc:
+        return error(str(exc), 404)
+    if title.status == "paid":
+        return jsonify(_serialize(title))
+    paid_date = str(payload.get("paid_date") or date.today().isoformat())
+    account_id = payload.get("account_id", title.account_id)
+    if account_id is not None:
+        account_id = int(account_id)
+        try:
+            repo.get_account(account_id)
+        except LookupError as exc:
+            return error(str(exc), 404)
+    try:
+        if account_id is not None:
+            amount = title.amount if title.type == "receivable" else -title.amount
+            repo.add_transaction(Transaction(
+                date=paid_date,
+                description=f"{title.description} (título)",
+                account_id=account_id,
+                amount=amount,
+                category_id=title.category_id,
+            ))
+    except (ValueError, TypeError, LookupError) as exc:
+        return error(str(exc))
+    title.status = "paid"
+    title.paid_date = paid_date
+    title.paid_amount = title.amount
+    title.account_id = account_id if account_id is not None else title.account_id
+    try:
+        updated = repo.update_title(title)
+    except (ValueError, TypeError) as exc:
+        return error(str(exc))
+    return jsonify(_serialize(updated))
+
+
+@bp.get("/alerts")
+def title_alerts():
+    repo = get_repo()
+    today = date.today().isoformat()
+    overdue = []
+    upcoming = []
+    for title in repo.list_titles(status="open"):
+        if title.due_date < today:
+            overdue.append(_serialize(title))
+        elif title.due_date <= _add_days(today, 7):
+            upcoming.append(_serialize(title))
+    return jsonify({"overdue": overdue, "upcoming": upcoming})
+
+
+def _add_days(iso: str, days: int) -> str:
+    from datetime import date, timedelta
+
+    y, m, d = (int(x) for x in iso.split("-"))
+    return (date(y, m, d) + timedelta(days=days)).isoformat()
 
 
 @bp.delete("/<int:title_id>")
