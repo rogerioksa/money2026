@@ -1203,7 +1203,27 @@ function startInlineBudgetEdit(tr, row, year, month) {
 // ---------- vista: painel (dashboard) ----------
 
 async function viewDashboard() {
-  const data = await api("/api/reports/dashboard");
+  const params = new URLSearchParams(location.hash.split("?")[1] || "");
+  const now = new Date();
+  const year = Number(params.get("ano")) || now.getFullYear();
+  const month = Number(params.get("mes")) || now.getMonth() + 1;
+  const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const pad = (n) => String(n).padStart(2, "0");
+  const start = `${year}-${pad(month)}-01`;
+  const end = `${year}-${pad(month)}-31`;
+  const prev = new Date(year, month - 2, 1);
+  const prevStart = `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-01`;
+  const prevEnd = `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-31`;
+
+  const [data, budgetAlerts, titleAlerts, monthTxns, prevTxns, spending, forecast] = await Promise.all([
+    api("/api/reports/dashboard"),
+    api(`/api/budgets/alerts?year=${year}&month=${month}`).catch(() => ({ monthly: [], annual: [] })),
+    api("/api/titles/alerts").catch(() => ({ overdue: [], upcoming: [] })),
+    api(`/api/transactions?start=${start}&end=${end}`).catch(() => []),
+    api(`/api/transactions?start=${prevStart}&end=${prevEnd}`).catch(() => []),
+    api(`/api/reports/spending?start=${start}&end=${end}`).catch(() => []),
+    api("/api/reports/forecast?months=3").catch(() => []),
+  ]);
 
   const accountRows = data.accounts.map((a) => `
     <tr>
@@ -1220,8 +1240,40 @@ async function viewDashboard() {
     ? Math.min(100, Math.round((data.credit.used_total / data.credit.limit_total) * 100))
     : 0;
 
+  const recentTxns = [...monthTxns].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 8);
+  const recentRows = recentTxns.map((t) => `
+    <tr>
+      <td>${fmtDate(t.date)}</td>
+      <td>${esc(t.description || "—")}</td>
+      <td class="num ${t.amount < 0 ? "neg" : "pos"}">${fmtMinor(t.amount)}</td>
+    </tr>`).join("");
+
+  const topCats = spending.slice(0, 5);
+  const topRows = topCats.map((c) => `
+    <tr><td>${esc(c.category)}</td><td class="num">${fmtMinor(c.total)}</td></tr>`).join("");
+
+  const forecastRows = forecast.map((f) => `
+    <tr><td>${esc(f.month)}</td><td class="num">${fmtMinor(f.projected_balance)}</td></tr>`).join("");
+
+  const budgetAlertRows = (budgetAlerts.monthly || []).map((a) => `
+    <li>${esc(a.category)} — realizado ${fmtMinor(a.actual)} de ${fmtMinor(a.planned)}</li>`).join("");
+
+  const thisExpense = monthTxns.reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0);
+  const prevExpense = prevTxns.reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0);
+  const expenseChange = prevExpense > 0 ? Math.round(((thisExpense - prevExpense) / prevExpense) * 100) : null;
+
   app.innerHTML = `
     <h2>Painel</h2>
+    <form id="dash-nav" class="form-row form-flex">
+      <label>Ano <input type="number" name="year" value="${year}" min="2000" max="2200"></label>
+      <label>Mês
+        <select name="month">
+          ${monthNames.map((m, i) => `<option value="${i + 1}" ${i + 1 === month ? "selected" : ""}>${m}</option>`).join("")}
+        </select>
+      </label>
+      <button type="submit">Ver</button>
+    </form>
+
     <div class="cards">
       <div class="card">
         <span class="card-label">Saldo em contas</span>
@@ -1249,6 +1301,49 @@ async function viewDashboard() {
     <div class="bar credit-bar"><div class="bar-fill ${creditPct >= 90 ? "over" : ""}" style="width:${creditPct}%"></div></div>
     <p class="placeholder">${creditPct}% do limite total utilizado.</p>
 
+    <div class="report-grid">
+      <section>
+        <h3>Alertas de orçamento (${monthNames[month - 1]}/${year})</h3>
+        ${budgetAlertRows ? `<ul>${budgetAlertRows}</ul>` : '<p class="placeholder">Sem estouros no mês.</p>'}
+      </section>
+      <section>
+        <h3>Títulos vencidos/vencendo</h3>
+        <p class="${titleAlerts.overdue.length ? "neg" : "placeholder"}">Vencidos: ${titleAlerts.overdue.length}</p>
+        <p class="placeholder">Vencendo em 7 dias: ${titleAlerts.upcoming.length}</p>
+      </section>
+    </div>
+
+    <h3>Insights</h3>
+    <p class="placeholder">
+      Gasto do mês: ${fmtMinor(thisExpense)}
+      ${expenseChange !== null ? `(${expenseChange >= 0 ? "+" : ""}${expenseChange}% vs. mês anterior)` : ""}
+    </p>
+    ${creditPct >= 90 ? '<p class="error">Atenção: uso do limite de crédito acima de 90%.</p>' : ""}
+
+    <h3>Top despesas do mês</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Categoria</th><th class="num">Total</th></tr></thead>
+        <tbody>${topRows || '<tr><td colspan="2" class="placeholder">Sem despesas.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h3>Últimas movimentações</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor</th></tr></thead>
+        <tbody>${recentRows || '<tr><td colspan="3" class="placeholder">Sem movimentos.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h3>Projeção de saldo (3 meses)</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Mês</th><th class="num">Saldo projetado</th></tr></thead>
+        <tbody>${forecastRows || '<tr><td colspan="2" class="placeholder">Sem projeção.</td></tr>'}</tbody>
+      </table>
+    </div>
+
     <h3>Saldos das contas</h3>
     <table class="grid">
       <thead><tr><th>Conta</th><th>Tipo</th><th class="num">Saldo</th>
@@ -1256,6 +1351,12 @@ async function viewDashboard() {
         <th class="num">Limite</th><th class="num">Disponível</th></tr></thead>
       <tbody>${accountRows || '<tr><td colspan="6" class="placeholder">Sem contas.</td></tr>'}</tbody>
     </table>`;
+
+  document.getElementById("dash-nav").addEventListener("submit", (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    location.hash = `#/painel?ano=${f.year.value}&mes=${f.month.value}`;
+  });
 }
 
 // ---------- vista: relatórios ----------
