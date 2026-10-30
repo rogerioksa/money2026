@@ -117,6 +117,89 @@ def cash_flow_forecast(repo: Repository, months: int = 12) -> list[dict]:
     return result
 
 
+def income_statement(repo: Repository, start: str, end: str) -> dict:
+    """DRE simplificado: receitas, despesas e resultado no período."""
+    revenues: dict[int, int] = {}
+    expenses: dict[int, int] = {}
+    revenue_total = 0
+    expense_total = 0
+    for txn in repo.list_transactions(start=start, end=end):
+        if txn.transfer_account_id is not None:
+            continue
+        if txn.splits:
+            for split in txn.splits:
+                cat = repo.get_category(split.category_id) if split.category_id else None
+                kind = cat.kind if cat else None
+                if kind == "income":
+                    revenues[split.category_id] = revenues.get(split.category_id, 0) + split.amount
+                    revenue_total += split.amount
+                elif kind == "expense":
+                    expenses[split.category_id] = (
+                        expenses.get(split.category_id, 0) + abs(split.amount)
+                    )
+                    expense_total += abs(split.amount)
+        elif txn.category_id is not None:
+            cat = repo.get_category(txn.category_id)
+            if cat.kind == "income":
+                revenues[txn.category_id] = revenues.get(txn.category_id, 0) + txn.amount
+                revenue_total += txn.amount
+            elif cat.kind == "expense":
+                expenses[txn.category_id] = expenses.get(txn.category_id, 0) + abs(txn.amount)
+                expense_total += abs(txn.amount)
+
+    revenue_rows = []
+    for cat in repo.list_categories(kind="income"):
+        total = revenues.get(cat.id, 0)
+        if total:
+            revenue_rows.append({"category_id": cat.id, "category": cat.name, "total": total})
+    revenue_rows.sort(key=lambda r: r["total"], reverse=True)
+
+    expense_rows = []
+    for cat in repo.list_categories(kind="expense"):
+        total = expenses.get(cat.id, 0)
+        if total:
+            expense_rows.append({"category_id": cat.id, "category": cat.name, "total": total})
+    expense_rows.sort(key=lambda r: r["total"], reverse=True)
+
+    return {
+        "start": start,
+        "end": end,
+        "revenue_total": revenue_total,
+        "expense_total": expense_total,
+        "result": revenue_total - expense_total,
+        "revenues": revenue_rows,
+        "expenses": expense_rows,
+    }
+
+
+def spending_by_cost_center(repo: Repository, start: str, end: str) -> list[dict]:
+    """Totais por centro de custo no período (líquido)."""
+    totals: dict[int | None, int] = {}
+    for txn in repo.list_transactions(start=start, end=end):
+        if txn.transfer_account_id is not None:
+            continue
+        if txn.splits:
+            for split in txn.splits:
+                key = split.cost_center_id
+                totals[key] = totals.get(key, 0) + split.amount
+        else:
+            key = txn.cost_center_id
+            totals[key] = totals.get(key, 0) + txn.amount
+
+    names = {cc.id: cc.name for cc in repo.list_cost_centers()}
+    result = []
+    for cc_id, total in totals.items():
+        if cc_id is None and total == 0:
+            continue
+        if cc_id is None:
+            name = "Sem centro de custo"
+        else:
+            name = names.get(cc_id, "Sem centro de custo")
+        result.append({"cost_center_id": cc_id, "cost_center": name, "total": total})
+    result.sort(key=lambda r: abs(r["total"]), reverse=True)
+    return result
+
+
 def dashboard(repo: Repository) -> dict:
     """Painel geral: saldos de todas as contas + resumo de crédito.
 

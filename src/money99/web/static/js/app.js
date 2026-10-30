@@ -1298,11 +1298,13 @@ async function viewReports() {
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
 
-  const [spending, worth, flow, forecast] = await Promise.all([
+  const [spending, worth, flow, forecast, dre, byCc] = await Promise.all([
     api(`/api/reports/spending?start=${start}&end=${end}`),
     api("/api/reports/net-worth"),
     api(`/api/reports/cash-flow?start=${start}&end=${end}`),
     api("/api/reports/forecast?months=12"),
+    api(`/api/reports/income-statement?start=${start}&end=${end}`),
+    api(`/api/reports/by-cost-center?start=${start}&end=${end}`),
   ]);
 
   const spendRows = spending.map((r) => `
@@ -1324,6 +1326,12 @@ async function viewReports() {
       <td class="num ${f.net < 0 ? "neg" : "pos"}">${fmtMinor(f.net)}</td>
       <td class="num">${fmtMinor(f.projected_balance)}</td>
     </tr>`).join("");
+  const dreRevenueRows = (dre.revenues || []).map((r) => `
+    <tr><td>${esc(r.category)}</td><td class="num pos">${fmtMinor(r.total)}</td></tr>`).join("");
+  const dreExpenseRows = (dre.expenses || []).map((r) => `
+    <tr><td>${esc(r.category)}</td><td class="num neg">${fmtMinor(r.total)}</td></tr>`).join("");
+  const ccRows = byCc.map((r) => `
+    <tr><td>${esc(r.cost_center)}</td><td class="num ${r.total < 0 ? "neg" : "pos"}">${fmtMinor(r.total)}</td></tr>`).join("");
 
   app.innerHTML = `
     <h2>Relatórios — ${year}</h2>
@@ -1372,6 +1380,31 @@ async function viewReports() {
         <thead><tr><th>Mês</th><th class="num">Entradas</th><th class="num">Saídas</th>
           <th class="num">Saldo do mês</th><th class="num">Saldo projetado</th></tr></thead>
         <tbody>${forecastRows || '<tr><td colspan="5" class="placeholder">Sem projeção.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h3>DRE simplificado — ${year}</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Receitas</th><th class="num">Total</th></tr></thead>
+        <tbody>${dreRevenueRows || '<tr><td colspan="2" class="placeholder">Sem receitas.</td></tr>'}</tbody>
+        <tfoot><tr><td>Total receitas</td><td class="num pos">${fmtMinor(dre.revenue_total)}</td></tr></tfoot>
+      </table>
+    </div>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Despesas</th><th class="num">Total</th></tr></thead>
+        <tbody>${dreExpenseRows || '<tr><td colspan="2" class="placeholder">Sem despesas.</td></tr>'}</tbody>
+        <tfoot><tr><td>Total despesas</td><td class="num neg">${fmtMinor(dre.expense_total)}</td></tr></tfoot>
+      </table>
+    </div>
+    <p><b>Resultado: <span class="${dre.result < 0 ? "neg" : "pos"}">${fmtMinor(dre.result)}</span></b></p>
+
+    <h3>Totais por centro de custo — ${year}</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Centro de custo</th><th class="num">Total</th></tr></thead>
+        <tbody>${ccRows || '<tr><td colspan="2" class="placeholder">Sem centros de custo.</td></tr>'}</tbody>
       </table>
     </div>
     <canvas id="bars" width="800" height="180"></canvas>`;

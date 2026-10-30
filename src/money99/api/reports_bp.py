@@ -9,8 +9,10 @@ from money99.services.reports import (
     cash_flow,
     cash_flow_forecast,
     dashboard,
+    income_statement,
     net_worth,
     spending_by_category,
+    spending_by_cost_center,
 )
 
 bp = Blueprint("reports", __name__, url_prefix="/api/reports")
@@ -48,6 +50,26 @@ def cash_flow_report():
     if not start or not end:
         return error("start e end são obrigatórios")
     return jsonify(cash_flow(repo, start, end))
+
+
+@bp.get("/income-statement")
+def income_statement_report():
+    repo = get_repo()
+    start = request.args.get("start")
+    end = request.args.get("end")
+    if not start or not end:
+        return error("start e end são obrigatórios")
+    return jsonify(income_statement(repo, start, end))
+
+
+@bp.get("/by-cost-center")
+def by_cost_center_report():
+    repo = get_repo()
+    start = request.args.get("start")
+    end = request.args.get("end")
+    if not start or not end:
+        return error("start e end são obrigatórios")
+    return jsonify(spending_by_cost_center(repo, start, end))
 
 
 @bp.get("/forecast")
