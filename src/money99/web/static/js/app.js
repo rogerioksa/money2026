@@ -1435,13 +1435,15 @@ async function viewReports() {
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
 
-  const [spending, worth, flow, forecast, dre, byCc] = await Promise.all([
+  const [spending, worth, flow, forecast, dre, byCc, delinquency, byAccount] = await Promise.all([
     api(`/api/reports/spending?start=${start}&end=${end}`),
     api("/api/reports/net-worth"),
     api(`/api/reports/cash-flow?start=${start}&end=${end}`),
     api("/api/reports/forecast?months=12"),
     api(`/api/reports/income-statement?start=${start}&end=${end}`),
     api(`/api/reports/by-cost-center?start=${start}&end=${end}`),
+    api("/api/reports/delinquency").catch(() => []),
+    api(`/api/reports/by-account?start=${start}&end=${end}`).catch(() => []),
   ]);
 
   const spendRows = spending.map((r) => `
@@ -1469,6 +1471,10 @@ async function viewReports() {
     <tr><td>${esc(r.category)}</td><td class="num neg">${fmtMinor(r.total)}</td></tr>`).join("");
   const ccRows = byCc.map((r) => `
     <tr><td>${esc(r.cost_center)}</td><td class="num ${r.total < 0 ? "neg" : "pos"}">${fmtMinor(r.total)}</td></tr>`).join("");
+  const delinquencyRows = delinquency.map((r) => `
+    <tr><td>${esc(r.favorecido)}</td><td class="num">${r.count}</td><td class="num neg">${fmtMinor(r.total)}</td></tr>`).join("");
+  const accountRowsReport = byAccount.map((r) => `
+    <tr><td>${esc(r.account)}</td><td class="num ${r.total < 0 ? "neg" : "pos"}">${fmtMinor(r.total)}</td></tr>`).join("");
 
   app.innerHTML = `
     <h2>Relatórios — ${year}</h2>
@@ -1542,6 +1548,22 @@ async function viewReports() {
       <table class="grid">
         <thead><tr><th>Centro de custo</th><th class="num">Total</th></tr></thead>
         <tbody>${ccRows || '<tr><td colspan="2" class="placeholder">Sem centros de custo.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h3>Totais por conta — ${year}</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Conta</th><th class="num">Total</th></tr></thead>
+        <tbody>${accountRowsReport || '<tr><td colspan="2" class="placeholder">Sem contas.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <h3>Inadimplência por favorecido</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Favorecido</th><th class="num">Títulos</th><th class="num">Total vencido</th></tr></thead>
+        <tbody>${delinquencyRows || '<tr><td colspan="3" class="placeholder">Sem inadimplência.</td></tr>'}</tbody>
       </table>
     </div>
     <canvas id="bars" width="800" height="180"></canvas>`;

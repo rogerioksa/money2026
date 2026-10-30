@@ -9,8 +9,10 @@ from money99.services.reports import (
     cash_flow,
     cash_flow_forecast,
     dashboard,
+    delinquency_by_favorecido,
     income_statement,
     net_worth,
+    spending_by_account,
     spending_by_category,
     spending_by_cost_center,
 )
@@ -80,3 +82,19 @@ def forecast_report():
     except ValueError:
         return error("months inválido")
     return jsonify(cash_flow_forecast(repo, months))
+
+
+@bp.get("/delinquency")
+def delinquency_report():
+    repo = get_repo()
+    return jsonify(delinquency_by_favorecido(repo))
+
+
+@bp.get("/by-account")
+def by_account_report():
+    repo = get_repo()
+    start = request.args.get("start")
+    end = request.args.get("end")
+    if not start or not end:
+        return error("start e end são obrigatórios")
+    return jsonify(spending_by_account(repo, start, end))

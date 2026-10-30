@@ -200,6 +200,42 @@ def spending_by_cost_center(repo: Repository, start: str, end: str) -> list[dict
     return result
 
 
+def delinquency_by_favorecido(repo: Repository) -> list[dict]:
+    """Títulos vencidos agrupados por favorecido."""
+    from datetime import date
+
+    today = date.today().isoformat()
+    totals: dict[str, int] = {}
+    counts: dict[str, int] = {}
+    for title in repo.list_titles(status="open"):
+        if title.due_date >= today:
+            continue
+        key = title.favorecido or "Sem favorecido"
+        totals[key] = totals.get(key, 0) + title.amount
+        counts[key] = counts.get(key, 0) + 1
+    result = [
+        {"favorecido": name, "total": total, "count": counts[name]}
+        for name, total in totals.items()
+    ]
+    result.sort(key=lambda r: r["total"], reverse=True)
+    return result
+
+
+def spending_by_account(repo: Repository, start: str, end: str) -> list[dict]:
+    """Totais por conta no período (líquido)."""
+    totals: dict[int, int] = {}
+    for txn in repo.list_transactions(start=start, end=end):
+        if txn.transfer_account_id is not None:
+            continue
+        totals[txn.account_id] = totals.get(txn.account_id, 0) + txn.amount
+    names = {acc.id: acc.name for acc in repo.list_accounts()}
+    result = []
+    for acc_id, total in totals.items():
+        result.append({"account_id": acc_id, "account": names.get(acc_id, "Conta"), "total": total})
+    result.sort(key=lambda r: abs(r["total"]), reverse=True)
+    return result
+
+
 def dashboard(repo: Repository) -> dict:
     """Painel geral: saldos de todas as contas + resumo de crédito.
 
