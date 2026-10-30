@@ -55,7 +55,11 @@ def _seed_profiles(engine: Engine) -> None:
                 )
             )
         default_id = conn.execute(text("SELECT MIN(id) FROM profiles")).scalar()
-        for table in ("accounts", "categories", "transactions", "budgets"):
+        tables = (
+            "accounts", "categories", "transactions", "budgets",
+            "titles", "favorecidos", "cost_centers", "annual_budgets",
+        )
+        for table in tables:
             conn.execute(
                 text(f"UPDATE {table} SET profile_id = :p WHERE profile_id IS NULL"),
                 {"p": default_id},
@@ -120,11 +124,13 @@ def _migrate(engine: Engine) -> None:
             ("notes", "TEXT"),
             ("reconciled", "BOOLEAN"),
             ("doc_issued", "BOOLEAN"),
+            ("cost_center_id", "INTEGER"),
         ],
         "splits": [
             ("transaction_id", "INTEGER"),
             ("category_id", "INTEGER"),
             ("amount", "INTEGER"),
+            ("cost_center_id", "INTEGER"),
         ],
         "budgets": [
             ("profile_id", "INTEGER"),
@@ -132,6 +138,42 @@ def _migrate(engine: Engine) -> None:
             ("month", "INTEGER"),
             ("category_id", "INTEGER"),
             ("planned", "INTEGER"),
+        ],
+        "titles": [
+            ("profile_id", "INTEGER"),
+            ("type", "VARCHAR(12)"),
+            ("description", "VARCHAR(240)"),
+            ("amount", "INTEGER"),
+            ("due_date", "VARCHAR(10)"),
+            ("status", "VARCHAR(12)"),
+            ("account_id", "INTEGER"),
+            ("category_id", "INTEGER"),
+            ("favorecido", "VARCHAR(160)"),
+            ("favorecido_id", "INTEGER"),
+            ("notes", "TEXT"),
+            ("paid_date", "VARCHAR(10)"),
+            ("paid_amount", "INTEGER"),
+        ],
+        "favorecidos": [
+            ("profile_id", "INTEGER"),
+            ("name", "VARCHAR(160)"),
+            ("kind", "VARCHAR(12)"),
+            ("document", "VARCHAR(20)"),
+            ("phone", "VARCHAR(40)"),
+            ("email", "VARCHAR(160)"),
+            ("notes", "TEXT"),
+            ("active", "BOOLEAN"),
+        ],
+        "cost_centers": [
+            ("profile_id", "INTEGER"),
+            ("name", "VARCHAR(120)"),
+            ("active", "BOOLEAN"),
+        ],
+        "annual_budgets": [
+            ("profile_id", "INTEGER"),
+            ("year", "INTEGER"),
+            ("category_id", "INTEGER"),
+            ("annual_planned", "INTEGER"),
         ],
         "users": [
             ("username", "VARCHAR(120)"),
