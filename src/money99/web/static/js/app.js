@@ -80,17 +80,19 @@ async function api(url, options = {}) {
 }
 
 async function refreshCache() {
-  const [accounts, categories, profiles, status] = await Promise.all([
+  const [accounts, categories, profiles, status, favorecidos] = await Promise.all([
     api("/api/accounts"),
     api("/api/categories"),
     api("/api/profiles"),
     api("/api/auth/status"),
+    api("/api/favorecidos").catch(() => []),
   ]);
   cache = {
     accounts,
     categories,
     profiles,
     profileId: status.profile_id,
+    favorecidos,
   };
   renderProfileSelect();
 }
@@ -1383,6 +1385,78 @@ async function viewReports() {
   drawBars(document.getElementById("bars"), spending);
 }
 
+// ---------- vista: favorecidos ----------
+async function viewFavorecidos() {
+  const items = await api("/api/favorecidos");
+  const rows = items.map((f) => `
+    <tr data-id="${f.id}">
+      <td>${esc(f.name)}</td>
+      <td>${esc(f.kind)}</td>
+      <td>${esc(f.document || "—")}</td>
+      <td>${esc(f.phone || "—")}</td>
+      <td>${f.active ? "Ativo" : "Inativo"}</td>
+      <td class="cell-actions">
+        <button class="btn-link danger" data-action="delete">Excluir</button>
+      </td>
+    </tr>`).join("");
+
+  app.innerHTML = `
+    <h2>Favorecidos (clientes/fornecedores)</h2>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Nome</th><th>Tipo</th><th>Documento</th><th>Telefone</th>
+          <th>Status</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="6" class="placeholder">Sem favorecidos.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <h3>Novo favorecido</h3>
+    <form id="fav-form" class="form-row form-flex">
+      <label>Nome <input name="name" required maxlength="160"></label>
+      <label>Tipo
+        <select name="kind">
+          <option value="supplier">Fornecedor</option>
+          <option value="customer">Cliente</option>
+          <option value="both">Ambos</option>
+        </select>
+      </label>
+      <label>Documento <input name="document" maxlength="20"></label>
+      <label>Telefone <input name="phone" maxlength="40"></label>
+      <label>E-mail <input name="email" maxlength="160"></label>
+      <button type="submit">Salvar</button>
+    </form>`;
+
+  document.getElementById("fav-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    try {
+      await api("/api/favorecidos", {
+        method: "POST",
+        body: JSON.stringify({
+          name: f.name.value,
+          kind: f.kind.value,
+          document: f.document.value,
+          phone: f.phone.value,
+          email: f.email.value,
+        }),
+      });
+      navigate();
+      toast("Favorecido salvo!");
+    } catch (err) { toast(err.message, true); }
+  });
+
+  app.querySelectorAll("tr[data-id]").forEach((tr) => {
+    const id = Number(tr.dataset.id);
+    tr.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+      if (!window.confirm("Excluir favorecido?")) return;
+      try {
+        await api(`/api/favorecidos/${id}`, { method: "DELETE" });
+        navigate();
+        toast("Favorecido excluído");
+      } catch (err) { toast(err.message, true); }
+    });
+  });
+}
+
 // ---------- vista: CAR/CAP ----------
 async function viewTitles() {
   const typeFilter = "all";
@@ -1424,7 +1498,12 @@ async function viewTitles() {
         </select>
       </label>
       <label>Descrição <input name="description" required maxlength="240"></label>
-      <label>Favorecido <input name="favorecido" maxlength="160"></label>
+      <label>Favorecido
+        <select name="favorecido_id">
+          <option value="">(nenhum)</option>
+          ${ (cache.favorecidos || []).map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("") }
+        </select>
+      </label>
       <label>Vencimento <input type="date" name="due_date" required></label>
       <label>Valor <input name="amount" class="num" value="0,00" required></label>
       <label>Conta (opcional)
@@ -1444,7 +1523,7 @@ async function viewTitles() {
         body: JSON.stringify({
           type: f.type.value,
           description: f.description.value,
-          favorecido: f.favorecido.value,
+          favorecido_id: f.favorecido_id.value || null,
           due_date: f.due_date.value,
           amount,
           account_id: f.account_id.value || null,
@@ -2212,6 +2291,7 @@ const routes = {
   "#/relatorios": viewReports,
   "#/mei": viewMei,
   "#/carcap": viewTitles,
+  "#/favorecidos": viewFavorecidos,
   "#/importar": viewImport,
   "#/config": viewSettings,
 };

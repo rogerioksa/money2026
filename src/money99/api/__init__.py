@@ -12,6 +12,7 @@ def register_blueprints(app: Flask) -> None:
         budgets_bp,
         categories_bp,
         cnpj_bp,
+        favorecidos_bp,
         import_bp,
         maintenance_bp,
         mei_bp,
@@ -28,6 +29,7 @@ def register_blueprints(app: Flask) -> None:
     app.register_blueprint(categories_bp.bp)
     app.register_blueprint(transactions_bp.bp)
     app.register_blueprint(titles_bp.bp)
+    app.register_blueprint(favorecidos_bp.bp)
     app.register_blueprint(budgets_bp.bp)
     app.register_blueprint(reports_bp.bp)
     app.register_blueprint(import_bp.bp)

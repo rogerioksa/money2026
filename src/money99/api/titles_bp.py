@@ -24,6 +24,7 @@ def _serialize(title):
         "account_id": title.account_id,
         "category_id": title.category_id,
         "favorecido": title.favorecido,
+        "favorecido_id": title.favorecido_id,
         "notes": title.notes,
         "paid_date": title.paid_date,
         "paid_amount": title.paid_amount,
@@ -43,6 +44,15 @@ def list_titles():
 def create_title():
     payload = request.get_json(silent=True) or {}
     repo = get_repo()
+    favorecido_id = payload.get("favorecido_id")
+    favorecido_name = str(payload.get("favorecido", "") or "")
+    if favorecido_id is not None:
+        try:
+            favorecido_id = int(favorecido_id)
+            fav = repo.get_favorecido(favorecido_id)
+            favorecido_name = fav.name
+        except (TypeError, ValueError, LookupError) as exc:
+            return error(str(exc), 404 if isinstance(exc, LookupError) else 400)
     try:
         title = Title(
             type=str(payload.get("type", "payable")),
@@ -51,7 +61,8 @@ def create_title():
             due_date=str(payload.get("due_date", "")),
             account_id=payload.get("account_id"),
             category_id=payload.get("category_id"),
-            favorecido=str(payload.get("favorecido", "") or ""),
+            favorecido=favorecido_name,
+            favorecido_id=favorecido_id,
             notes=str(payload.get("notes", "") or ""),
         )
         if title.account_id is not None:
@@ -79,6 +90,17 @@ def update_title(title_id: int):
         existing = repo.get_title(title_id)
     except LookupError as exc:
         return error(str(exc), 404)
+    favorecido_id = payload.get("favorecido_id", existing.favorecido_id)
+    favorecido_name = str(payload.get("favorecido", existing.favorecido) or "")
+    if favorecido_id is not None and favorecido_id != existing.favorecido_id:
+        favorecido_id = int(favorecido_id)
+        try:
+            fav = repo.get_favorecido(favorecido_id)
+            favorecido_name = fav.name
+        except LookupError as exc:
+            return error(str(exc), 404)
+    elif favorecido_id is None:
+        favorecido_name = str(payload.get("favorecido", existing.favorecido) or "")
     title = Title(
         id=title_id,
         type=str(payload.get("type", existing.type)),
@@ -88,7 +110,8 @@ def update_title(title_id: int):
         status=str(payload.get("status", existing.status)),
         account_id=payload.get("account_id", existing.account_id),
         category_id=payload.get("category_id", existing.category_id),
-        favorecido=str(payload.get("favorecido", existing.favorecido) or ""),
+        favorecido=favorecido_name,
+        favorecido_id=favorecido_id,
         notes=str(payload.get("notes", existing.notes) or ""),
         paid_date=str(payload.get("paid_date", existing.paid_date) or ""),
         paid_amount=int(payload.get("paid_amount", existing.paid_amount) or 0),
