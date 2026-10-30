@@ -125,12 +125,6 @@ function accountTypeLabel(type) {
   return ACCOUNT_TYPE_LABELS[type] || type;
 }
 
-const MEI_ACTIVITY_LABELS = {
-  comercio: "Comércio",
-  industria: "Indústria",
-  servicos: "Serviços",
-};
-
 function categoryName(id) {
   const c = cache.categories.find((x) => x.id === id);
   return c ? c.name : "?";
