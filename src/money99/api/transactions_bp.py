@@ -19,7 +19,11 @@ def _serialize(txn: Transaction) -> dict:
         "amount": txn.amount,
         "category_id": txn.category_id,
         "transfer_account_id": txn.transfer_account_id,
-        "splits": [{"category_id": s.category_id, "amount": s.amount} for s in txn.splits],
+        "splits": [
+        {"category_id": s.category_id, "amount": s.amount, "cost_center_id": s.cost_center_id}
+        for s in txn.splits
+    ],
+    "cost_center_id": txn.cost_center_id,
         "notes": txn.notes,
         "reconciled": txn.reconciled,
         "doc_issued": txn.doc_issued,
@@ -34,8 +38,13 @@ def _parse_payload(payload: dict) -> Transaction:
         amount=int(payload.get("amount", 0)),
         category_id=payload.get("category_id"),
         transfer_account_id=payload.get("transfer_account_id"),
+        cost_center_id=payload.get("cost_center_id"),
         splits=[
-            Split(category_id=int(s.get("category_id", 0)), amount=int(s.get("amount", 0)))
+            Split(
+                category_id=int(s.get("category_id", 0)),
+                amount=int(s.get("amount", 0)),
+                cost_center_id=s.get("cost_center_id"),
+            )
             for s in payload.get("splits", [])
         ],
         notes=str(payload.get("notes", "")),

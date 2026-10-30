@@ -80,12 +80,13 @@ async function api(url, options = {}) {
 }
 
 async function refreshCache() {
-  const [accounts, categories, profiles, status, favorecidos] = await Promise.all([
+  const [accounts, categories, profiles, status, favorecidos, costCenters] = await Promise.all([
     api("/api/accounts"),
     api("/api/categories"),
     api("/api/profiles"),
     api("/api/auth/status"),
     api("/api/favorecidos").catch(() => []),
+    api("/api/cost-centers").catch(() => []),
   ]);
   cache = {
     accounts,
@@ -93,6 +94,7 @@ async function refreshCache() {
     profiles,
     profileId: status.profile_id,
     favorecidos,
+    costCenters,
   };
   renderProfileSelect();
 }
@@ -634,6 +636,7 @@ async function viewTransactions() {
         <label>Descrição <input name="description" maxlength="240"></label>
         <label>Conta <select name="account_id" required>${selectOptions(cache.accounts, accountId)}</select></label>
         <label>Categoria <select name="category_id">${categorySelectHtml(null)}</select></label>
+        <label>Centro de custo <select name="cost_center_id">${selectOptions(cache.costCenters || [])}</select></label>
         <label>Valor (saída com "-") <input name="amount" placeholder="-50,00" class="num" required></label>
         ${business ? '<label class="check" title="Documento fiscal emitido (venda para PJ)"><input type="checkbox" name="doc_issued"> NF emitida</label>' : ""}
         <button type="submit">Lançar</button>
@@ -769,6 +772,7 @@ async function viewTransactions() {
           description: form.description.value,
           account_id: Number(form.account_id.value),
           category_id: form.category_id.value ? Number(form.category_id.value) : null,
+          cost_center_id: form.cost_center_id.value ? Number(form.cost_center_id.value) : null,
           amount,
           doc_issued: business ? form.doc_issued.checked : false,
         }),
@@ -1383,6 +1387,58 @@ async function viewReports() {
 
   drawPie(document.getElementById("pie"), spending);
   drawBars(document.getElementById("bars"), spending);
+}
+
+// ---------- vista: centros de custo ----------
+async function viewCostCenters() {
+  const items = await api("/api/cost-centers");
+  const rows = items.map((c) => `
+    <tr data-id="${c.id}">
+      <td>${esc(c.name)}</td>
+      <td>${c.active ? "Ativo" : "Inativo"}</td>
+      <td class="cell-actions">
+        <button class="btn-link danger" data-action="delete">Excluir</button>
+      </td>
+    </tr>`).join("");
+
+  app.innerHTML = `
+    <h2>Centros de custo</h2>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead><tr><th>Nome</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="3" class="placeholder">Sem centros de custo.</td></tr>'}</tbody>
+      </table>
+    </div>
+    <h3>Novo centro de custo</h3>
+    <form id="cc-form" class="form-row form-flex">
+      <label>Nome <input name="name" required maxlength="120"></label>
+      <button type="submit">Salvar</button>
+    </form>`;
+
+  document.getElementById("cc-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const f = ev.target;
+    try {
+      await api("/api/cost-centers", {
+        method: "POST",
+        body: JSON.stringify({ name: f.name.value }),
+      });
+      navigate();
+      toast("Centro de custo salvo!");
+    } catch (err) { toast(err.message, true); }
+  });
+
+  app.querySelectorAll("tr[data-id]").forEach((tr) => {
+    const id = Number(tr.dataset.id);
+    tr.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+      if (!window.confirm("Excluir centro de custo?")) return;
+      try {
+        await api(`/api/cost-centers/${id}`, { method: "DELETE" });
+        navigate();
+        toast("Centro de custo excluído");
+      } catch (err) { toast(err.message, true); }
+    });
+  });
 }
 
 // ---------- vista: favorecidos ----------
@@ -2292,6 +2348,7 @@ const routes = {
   "#/mei": viewMei,
   "#/carcap": viewTitles,
   "#/favorecidos": viewFavorecidos,
+  "#/centros": viewCostCenters,
   "#/importar": viewImport,
   "#/config": viewSettings,
 };

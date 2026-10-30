@@ -17,6 +17,8 @@ from money99.db.models import (
     AnnualBudgetRow,
     BudgetRow,
     CategoryRow,
+    CostCenterRow,
+    FavorecidoRow,
     ProfileRow,
     SplitRow,
     TitleRow,
@@ -24,6 +26,8 @@ from money99.db.models import (
     UserRow,
 )
 from money99.domain.account import Account, AccountType
+from money99.domain.cost_center import CostCenter
+from money99.domain.favorecido import Favorecido
 from money99.domain.profile import Profile, ProfileKind
 from money99.domain.title import Title
 from money99.domain.transaction import Split, Transaction
@@ -267,10 +271,15 @@ class Repository:
             notes=txn.notes,
             reconciled=txn.reconciled,
             doc_issued=txn.doc_issued,
+            cost_center_id=txn.cost_center_id,
         )
         for split in txn.splits:
             row.splits.append(
-                SplitRow(category_id=split.category_id, amount=split.amount)
+                SplitRow(
+                    category_id=split.category_id,
+                    amount=split.amount,
+                    cost_center_id=split.cost_center_id,
+                )
             )
         self.session.add(row)
         self.session.flush()
@@ -293,10 +302,15 @@ class Repository:
         row.notes = txn.notes
         row.reconciled = txn.reconciled
         row.doc_issued = txn.doc_issued
+        row.cost_center_id = txn.cost_center_id
         row.splits.clear()
         for split in txn.splits:
             row.splits.append(
-                SplitRow(category_id=split.category_id, amount=split.amount)
+                SplitRow(
+                    category_id=split.category_id,
+                    amount=split.amount,
+                    cost_center_id=split.cost_center_id,
+                )
             )
         return self._to_transaction(row)
 
@@ -355,8 +369,12 @@ class Repository:
             self.get_account(txn.transfer_account_id)
         if txn.category_id is not None:
             self.get_category(txn.category_id)
+        if txn.cost_center_id is not None:
+            self.get_cost_center(txn.cost_center_id)
         for split in txn.splits:
             self.get_category(split.category_id)
+            if split.cost_center_id is not None:
+                self.get_cost_center(split.cost_center_id)
 
     # --- orçamentos ---
 
@@ -445,6 +463,7 @@ class Repository:
             account_id=title.account_id,
             category_id=title.category_id,
             favorecido=title.favorecido,
+            favorecido_id=title.favorecido_id,
             notes=title.notes,
             paid_date=title.paid_date,
             paid_amount=title.paid_amount,
@@ -467,6 +486,7 @@ class Repository:
         row.account_id = title.account_id
         row.category_id = title.category_id
         row.favorecido = title.favorecido
+        row.favorecido_id = title.favorecido_id
         row.notes = title.notes
         row.paid_date = title.paid_date
         row.paid_amount = title.paid_amount
@@ -489,10 +509,116 @@ class Repository:
             account_id=row.account_id,
             category_id=row.category_id,
             favorecido=row.favorecido or "",
+            favorecido_id=row.favorecido_id,
             notes=row.notes or "",
             paid_date=row.paid_date or "",
             paid_amount=row.paid_amount or 0,
         )
+
+    # --- favorecidos ---
+    def list_favorecidos(self, *, active_only: bool = False) -> list[Favorecido]:
+        stmt = select(FavorecidoRow).order_by(FavorecidoRow.name)
+        stmt = self._scope(stmt, FavorecidoRow)
+        if active_only:
+            stmt = stmt.where(FavorecidoRow.active.is_(True))
+        return [self._to_favorecido(row) for row in self.session.scalars(stmt)]
+
+    def get_favorecido(self, favorecido_id: int) -> Favorecido:
+        row = self.session.get(FavorecidoRow, favorecido_id)
+        if row is None:
+            raise LookupError(f"favorecido {favorecido_id} não encontrado")
+        return self._to_favorecido(row)
+
+    def add_favorecido(self, favorecido: Favorecido) -> Favorecido:
+        row = FavorecidoRow(
+            profile_id=self.profile_id,
+            name=favorecido.name,
+            kind=favorecido.kind,
+            document=favorecido.document,
+            phone=favorecido.phone,
+            email=favorecido.email,
+            notes=favorecido.notes,
+            active=favorecido.active,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return self._to_favorecido(row)
+
+    def update_favorecido(self, favorecido: Favorecido) -> Favorecido:
+        if favorecido.id is None:
+            raise ValueError("favorecido sem id")
+        row = self.session.get(FavorecidoRow, favorecido.id)
+        if row is None:
+            raise LookupError(f"favorecido {favorecido.id} não encontrado")
+        row.name = favorecido.name
+        row.kind = favorecido.kind
+        row.document = favorecido.document
+        row.phone = favorecido.phone
+        row.email = favorecido.email
+        row.notes = favorecido.notes
+        row.active = favorecido.active
+        return self._to_favorecido(row)
+
+    def delete_favorecido(self, favorecido_id: int) -> None:
+        row = self.session.get(FavorecidoRow, favorecido_id)
+        if row is None:
+            raise LookupError(f"favorecido {favorecido_id} não encontrado")
+        self.session.delete(row)
+
+    def _to_favorecido(self, row: FavorecidoRow) -> Favorecido:
+        return Favorecido(
+            id=row.id,
+            name=row.name or "",
+            kind=row.kind or "supplier",
+            document=row.document or "",
+            phone=row.phone or "",
+            email=row.email or "",
+            notes=row.notes or "",
+            active=bool(row.active),
+        )
+
+    # --- centros de custo ---
+    def list_cost_centers(self, *, active_only: bool = False) -> list[CostCenter]:
+        stmt = select(CostCenterRow).order_by(CostCenterRow.name)
+        stmt = self._scope(stmt, CostCenterRow)
+        if active_only:
+            stmt = stmt.where(CostCenterRow.active.is_(True))
+        return [self._to_cost_center(row) for row in self.session.scalars(stmt)]
+
+    def get_cost_center(self, cost_center_id: int) -> CostCenter:
+        row = self.session.get(CostCenterRow, cost_center_id)
+        if row is None:
+            raise LookupError(f"centro de custo {cost_center_id} não encontrado")
+        return self._to_cost_center(row)
+
+    def add_cost_center(self, cost_center: CostCenter) -> CostCenter:
+        row = CostCenterRow(
+            profile_id=self.profile_id,
+            name=cost_center.name,
+            active=cost_center.active,
+        )
+        self.session.add(row)
+        self.session.flush()
+        return self._to_cost_center(row)
+
+    def update_cost_center(self, cost_center: CostCenter) -> CostCenter:
+        if cost_center.id is None:
+            raise ValueError("centro de custo sem id")
+        row = self.session.get(CostCenterRow, cost_center.id)
+        if row is None:
+            raise LookupError(f"centro de custo {cost_center.id} não encontrado")
+        row.name = cost_center.name
+        row.active = cost_center.active
+        return self._to_cost_center(row)
+
+    def delete_cost_center(self, cost_center_id: int) -> None:
+        row = self.session.get(CostCenterRow, cost_center_id)
+        if row is None:
+            raise LookupError(f"centro de custo {cost_center_id} não encontrado")
+        self.session.delete(row)
+
+    def _to_cost_center(self, row: CostCenterRow) -> CostCenter:
+        return CostCenter(id=row.id, name=row.name or "", active=bool(row.active))
 
     # --- usuários ---
 
@@ -548,7 +674,11 @@ class Repository:
             amount=row.amount,
             category_id=row.category_id,
             transfer_account_id=row.transfer_account_id,
-            splits=[Split(category_id=s.category_id, amount=s.amount) for s in row.splits],
+            splits=[
+            Split(category_id=s.category_id, amount=s.amount, cost_center_id=s.cost_center_id)
+            for s in row.splits
+        ],
+        cost_center_id=row.cost_center_id,
             notes=row.notes,
             reconciled=row.reconciled,
             doc_issued=bool(row.doc_issued),

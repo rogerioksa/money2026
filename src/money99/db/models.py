@@ -63,6 +63,7 @@ class TransactionRow(Base):
     notes: Mapped[str] = mapped_column(Text, default="")
     reconciled: Mapped[bool] = mapped_column(Boolean, default=False)
     doc_issued: Mapped[bool] = mapped_column(Boolean, default=False)  # MEI: NF emitida
+    cost_center_id: Mapped[int | None] = mapped_column(ForeignKey("cost_centers.id"), nullable=True)
 
     splits: Mapped[list[SplitRow]] = relationship(
         back_populates="transaction", cascade="all, delete-orphan"
@@ -76,8 +77,23 @@ class SplitRow(Base):
     transaction_id: Mapped[int] = mapped_column(ForeignKey("transactions.id"))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     amount: Mapped[int] = mapped_column(Integer)
+    cost_center_id: Mapped[int | None] = mapped_column(ForeignKey("cost_centers.id"), nullable=True)
 
     transaction: Mapped[TransactionRow] = relationship(back_populates="splits")
+
+
+class FavorecidoRow(Base):
+    __tablename__ = "favorecidos"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(12), default="supplier")
+    document: Mapped[str] = mapped_column(String(20), default="")
+    phone: Mapped[str] = mapped_column(String(40), default="")
+    email: Mapped[str] = mapped_column(String(160), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class TitleRow(Base):
@@ -93,9 +109,19 @@ class TitleRow(Base):
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
     favorecido: Mapped[str] = mapped_column(String(160), default="")
+    favorecido_id: Mapped[int | None] = mapped_column(ForeignKey("favorecidos.id"), nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     paid_date: Mapped[str] = mapped_column(String(10), default="")
     paid_amount: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class CostCenterRow(Base):
+    __tablename__ = "cost_centers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id"), nullable=True)
+    name: Mapped[str] = mapped_column(String(120))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class BudgetRow(Base):

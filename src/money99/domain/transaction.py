@@ -16,6 +16,7 @@ from money99.domain.money import parse_iso_date
 class Split:
     category_id: int
     amount: int  # centavos, assinado; soma deve igualar o amount da transação
+    cost_center_id: int | None = None
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Transaction:
     description: str = ""
     category_id: int | None = None
     transfer_account_id: int | None = None
+    cost_center_id: int | None = None
     splits: list[Split] = field(default_factory=list)
     notes: str = ""
     reconciled: bool = False
