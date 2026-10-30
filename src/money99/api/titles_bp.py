@@ -145,6 +145,16 @@ def pay_title(title_id: int):
     if title.status == "paid":
         return jsonify(_serialize(title))
     paid_date = str(payload.get("paid_date") or date.today().isoformat())
+    pay_amount = payload.get("amount", title.amount - title.paid_amount)
+    try:
+        pay_amount = int(pay_amount)
+    except (TypeError, ValueError):
+        return error("valor pago inválido")
+    if pay_amount <= 0:
+        return error("valor pago deve ser positivo")
+    remaining = title.amount - title.paid_amount
+    if pay_amount > remaining:
+        pay_amount = remaining
     account_id = payload.get("account_id", title.account_id)
     if account_id is not None:
         account_id = int(account_id)
@@ -154,7 +164,7 @@ def pay_title(title_id: int):
             return error(str(exc), 404)
     try:
         if account_id is not None:
-            amount = title.amount if title.type == "receivable" else -title.amount
+            amount = pay_amount if title.type == "receivable" else -pay_amount
             repo.add_transaction(Transaction(
                 date=paid_date,
                 description=f"{title.description} (título)",
@@ -164,9 +174,13 @@ def pay_title(title_id: int):
             ))
     except (ValueError, TypeError, LookupError) as exc:
         return error(str(exc))
-    title.status = "paid"
+    title.paid_amount = title.paid_amount + pay_amount
     title.paid_date = paid_date
-    title.paid_amount = title.amount
+    if title.paid_amount >= title.amount:
+        title.status = "paid"
+        title.paid_amount = title.amount
+    else:
+        title.status = "partial"
     title.account_id = account_id if account_id is not None else title.account_id
     try:
         updated = repo.update_title(title)

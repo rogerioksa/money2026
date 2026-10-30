@@ -1526,7 +1526,7 @@ async function viewTitles() {
       <td>${esc(t.favorecido || "—")}</td>
       <td>${fmtDate(t.due_date)}</td>
       <td class="num">${fmtMinor(t.amount)}</td>
-      <td class="${t.status === "paid" ? "pos" : t.status === "cancelled" ? "muted" : (t.due_date < new Date().toISOString().slice(0,10) ? "neg" : "")}">${esc(t.status)}</td>
+      <td class="${t.status === "paid" ? "pos" : t.status === "cancelled" ? "muted" : (t.due_date < new Date().toISOString().slice(0,10) ? "neg" : "")}">${esc(t.status)}${t.status === "partial" ? ` (${fmtMinor(t.paid_amount)}/${fmtMinor(t.amount)})` : ""}</td>
       <td class="cell-actions">
         ${t.status === "open" ? '<button class="btn-link" data-action="pay">Pagar</button>' : ""}
         <button class="btn-link" data-action="edit">Editar</button>
@@ -1596,13 +1596,18 @@ async function viewTitles() {
     const payBtn = tr.querySelector('[data-action="pay"]');
     if (payBtn) {
       payBtn.addEventListener("click", async () => {
+        const remaining = title.amount - (title.paid_amount || 0);
+        const input = window.prompt("Valor a pagar (centavos):", String(remaining));
+        if (input === null) return;
+        const amount = parseBRL(input);
+        if (amount === null || amount <= 0) { toast("Valor inválido", true); return; }
         try {
           await api(`/api/titles/${id}/pay`, {
             method: "POST",
-            body: JSON.stringify({ paid_date: new Date().toISOString().slice(0, 10) }),
+            body: JSON.stringify({ paid_date: new Date().toISOString().slice(0, 10), amount }),
           });
           navigate();
-          toast("Título pago!");
+          toast("Pagamento registrado!");
         } catch (err) { toast(err.message, true); }
       });
     }

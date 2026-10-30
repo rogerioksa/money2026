@@ -13,6 +13,7 @@ class TitleType(str):
 
 class TitleStatus(str):
     OPEN = "open"
+    PARTIAL = "partial"
     PAID = "paid"
     CANCELLED = "cancelled"
 
@@ -27,6 +28,7 @@ class Title:
     account_id: int | None = None
     category_id: int | None = None
     favorecido: str = ""
+    favorecido_id: int | None = None
     notes: str = ""
     paid_date: str = ""
     paid_amount: int = 0
@@ -42,7 +44,12 @@ class Title:
         # valida data
         y, m, d = self.due_date.split("-")
         date(int(y), int(m), int(d))
-        if self.status not in (TitleStatus.OPEN, TitleStatus.PAID, TitleStatus.CANCELLED):
+        if self.status not in (
+            TitleStatus.OPEN,
+            TitleStatus.PARTIAL,
+            TitleStatus.PAID,
+            TitleStatus.CANCELLED,
+        ):
             raise ValueError("status inválido")
         if self.paid_amount < 0:
             raise ValueError("valor pago não pode ser negativo")
