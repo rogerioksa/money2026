@@ -1040,6 +1040,8 @@ async function viewBudget() {
   const alerts = await api(`/api/budgets/alerts?year=${year}&month=${month}`).catch(() => ({ monthly: [], annual: [] }));
   const annualRows = await api(`/api/budgets?year=${year}`).catch(() => []);
   const accountRows = await api(`/api/budgets/accounts?year=${year}&month=${month}`).catch(() => []);
+  const netWorth = await api("/api/reports/net-worth").catch(() => ({ total: 0 }));
+  const forecast = await api("/api/reports/forecast?months=6").catch(() => []);
   const expenseCats = cache.categories.filter((c) => c.kind === "expense");
 
   const monthNames = ["jan", "fev", "mar", "abr", "mai", "jun",
@@ -1131,6 +1133,46 @@ async function viewBudget() {
   const annualContainerEl = document.getElementById("annual-budget");
   if (annualContainerEl && annualContainerEl.parentNode) {
     annualContainerEl.parentNode.insertBefore(accountContainer, annualContainerEl);
+  }
+
+  // Painel de decisão
+  const monthlyExpenses = rows.reduce((s, r) => s + (r.actual || 0), 0);
+  const avgExpense = monthlyExpenses > 0 ? monthlyExpenses : 1;
+  const coverage = netWorth.total > 0 ? (netWorth.total / avgExpense).toFixed(1) : "0.0";
+  const runway = coverage;
+  const worstCase = forecast.map((f) => ({
+    month: f.month,
+    balance: (netWorth.total || 0) + (f.projected_balance - (netWorth.total || 0)) * 0.8,
+  }));
+  const cutSuggestions = rows
+    .filter((r) => r.planned > 0 && r.actual > r.planned)
+    .sort((a, b) => (b.actual - b.planned) - (a.actual - a.planned))
+    .slice(0, 5);
+  const cutHtml = cutSuggestions.length
+    ? cutSuggestions.map((r) => `<li>${esc(r.category)} — excesso ${fmtMinor(r.actual - r.planned)}</li>`).join("")
+    : "<li>Sem estouros no mês.</li>";
+  const decisionContainer = document.createElement("div");
+  decisionContainer.innerHTML = `
+    <h3>Painel de decisão (corte de orçamento / reserva)</h3>
+    <div class="report-grid">
+      <section>
+        <p><b>Cobertura de caixa:</b> ${coverage} meses de despesa</p>
+        <p><b>Runway:</b> ${runway} meses</p>
+        <p><b>Gasto do mês:</b> ${fmtMinor(monthlyExpenses)}</p>
+        <p><b>Saldo atual:</b> ${fmtMinor(netWorth.total || 0)}</p>
+      </section>
+      <section>
+        <p><b>Cenário base (6 meses):</b></p>
+        <ul>${forecast.slice(0, 6).map((f) => `<li>${esc(f.month)}: ${fmtMinor(f.projected_balance)}</li>`).join("")}</ul>
+        <p><b>Cenário conservador:</b></p>
+        <ul>${worstCase.slice(0, 6).map((f) => `<li>${esc(f.month)}: ${fmtMinor(Math.round(f.balance))}</li>`).join("")}</ul>
+      </section>
+    </div>
+    <h4>Cortes sugeridos</h4>
+    <ul>${cutHtml}</ul>`;
+  const annualEl = document.getElementById("annual-budget");
+  if (annualEl && annualEl.parentNode) {
+    annualEl.parentNode.insertBefore(decisionContainer, annualEl);
   }
 
   if (alerts.monthly && alerts.monthly.length) {
