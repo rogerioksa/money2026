@@ -39,6 +39,9 @@ webview_pack.spec                 # build do Money2026.exe
 - `#/orcamento` — planejado × realizado por categoria/mês.
 - `#/relatorios` — gastos por categoria, patrimônio líquido, fluxo de caixa (canvas).
 - `#/importar` — preview e importação de extrato QIF/OFX.
+- `#/carcap` — contas a pagar/receber (CAR/CAP).
+- `#/favorecidos` — clientes/fornecedores.
+- `#/centros` — centros de custo.
 
 ## Dados em runtime
 

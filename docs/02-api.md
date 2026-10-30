@@ -36,8 +36,8 @@ tem um `kind`: `personal` ou `business` (MEI). A sessão guarda o perfil ativo
 | DELETE | `/api/profiles/<id>` | Exclui (400 se tiver dados ou for o único). |
 
 Empresarial/MEI usa `annual_limit` (centavos; padrão `R$ 81.000,00`) para o
-controle do limite anual e `activity` (`comercio`/`industria`/`servicos`) para
-escolher a seção do Caderno do MEI.
+controle do limite anual e `activities` (lista; ex.: `["comercio","servicos"]`)
+para gerar as seções do Caderno do MEI.
 
 ## CNPJ — `/api/cnpj`
 
@@ -46,8 +46,8 @@ escolher a seção do Caderno do MEI.
 | GET | `/api/cnpj/<cnpj>` | Consulta a empresa na BrasilAPI (somente dígitos; 14). |
 
 Retorna `{cnpj, legal_name, trade_name, opened_on, status, city, state, cnae,
-cnae_description, activity}` — `activity` é inferida do CNAE (45-47 comércio,
-10-33 indústria, demais serviços).
+cnae_description, activity, secondary_cnaes, activity_check}` — `activity` é
+inferida do CNAE; `activity_check` compara os CNAEs com o Anexo XI da Receita.
 400 para CNPJ inválido; 502 quando o serviço/rede estiver indisponível. Usado pelo
 botão **Buscar** ao lado do CNPJ na tela de perfis.
 
@@ -113,8 +113,11 @@ ações em massa para os lançamentos visíveis no Extrato.
 
 | Método | Rota | Descrição |
 |---|---|---|
-| GET | `/api/budgets?year&month` | Planejado × realizado por categoria. |
-| PUT | `/api/budgets` | `{year, month, category_id, planned}`. |
+| GET | `/api/budgets?year&month` | Planejado (mensal derivado do anual) × realizado por categoria. |
+| GET | `/api/budgets?year` | Visão anual por categoria. |
+| PUT | `/api/budgets` | `{year, category_id, annual_planned}` (aceita `planned` legado). |
+| GET | `/api/budgets/accounts?year&month` | Gastos realizados por conta. |
+| GET | `/api/budgets/alerts?year&month` | Alertas de estouro mensal/anual. |
 
 ## Relatórios — `/api/reports`
 
@@ -124,6 +127,11 @@ ações em massa para os lançamentos visíveis no Extrato.
 | GET | `/api/reports/net-worth[?as_of]` | Patrimônio líquido. |
 | GET | `/api/reports/cash-flow?start&end` | Entradas/saídas por mês. |
 | GET | `/api/reports/dashboard` | Saldos de todas as contas + resumo de crédito. |
+| GET | `/api/reports/forecast?months` | Projeção de fluxo de caixa. |
+| GET | `/api/reports/income-statement?start&end` | DRE simplificado. |
+| GET | `/api/reports/by-cost-center?start&end` | Totais por centro de custo. |
+| GET | `/api/reports/by-account?start&end` | Totais por conta. |
+| GET | `/api/reports/delinquency` | Inadimplência por favorecido. |
 
 `dashboard` retorna `accounts` (cada uma com `balance` até hoje, `future`,
 `credit_limit` e `available`), `assets_total`, `net_worth` e `credit`
@@ -150,6 +158,35 @@ Restaurar e resetar criam antes um backup automático (`pre-restore`/`pre-reset`
 validam o arquivo (`integrity_check` + tabelas obrigatórias) e limpam a sessão —
 a SPA redireciona para `/login` (reset volta ao setup inicial). Backups antigos
 são mantidos.
+
+## Favorecidos — `/api/favorecidos`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/favorecidos[?active_only=1]` | Lista favorecidos. |
+| POST | `/api/favorecidos` | Cria favorecido. |
+| PUT | `/api/favorecidos/<id>` | Atualiza. |
+| DELETE | `/api/favorecidos/<id>` | Exclui. |
+
+## Centros de custo — `/api/cost-centers`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/cost-centers[?active_only=1]` | Lista centros de custo. |
+| POST | `/api/cost-centers` | Cria centro de custo. |
+| PUT | `/api/cost-centers/<id>` | Atualiza. |
+| DELETE | `/api/cost-centers/<id>` | Exclui. |
+
+## Títulos (CAR/CAP) — `/api/titles`
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/titles[?type&status]` | Lista títulos. |
+| POST | `/api/titles` | Cria título. |
+| PUT | `/api/titles/<id>` | Atualiza. |
+| DELETE | `/api/titles/<id>` | Exclui. |
+| POST | `/api/titles/<id>/pay` | Baixa (parcial ou total). |
+| GET | `/api/titles/alerts` | Vencidos e vencendo em 7 dias. |
 
 ## Importação — `/api/import`
 
