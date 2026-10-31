@@ -383,14 +383,16 @@ def parse_csv(content: str) -> list[ImportedTransaction]:
     for raw in rows[start:]:
         if len(raw) <= max(date_idx, amount_idx):
             continue
-        date_text = raw[date_idx].strip()
+        date_text = raw[date_idx].strip() if date_idx < len(raw) else ""
         if not date_text:
             continue
         try:
             date_iso = _parse_csv_date(date_text)
-        except StatementParseError:
+            amount = _parse_csv_amount(raw[amount_idx])
+        except (StatementParseError, ValueError, IndexError):
             continue
-        amount = _parse_csv_amount(raw[amount_idx])
+        if amount == 0:
+            continue
         description = raw[desc_idx].strip() if desc_idx is not None and desc_idx < len(raw) else ""
         if detail_idx is not None and detail_idx < len(raw):
             detail = raw[detail_idx].strip()
