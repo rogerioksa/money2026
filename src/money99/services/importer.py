@@ -321,7 +321,15 @@ def parse_csv(content: str) -> list[ImportedTransaction]:
     if not rows:
         raise StatementParseError("conteúdo CSV vazio")
 
-    header = [cell.strip().lower() for cell in rows[0]]
+    # Ignora linhas de preambulo ate encontrar o cabecalho real.
+    header_row_index = 0
+    for idx, row in enumerate(rows):
+        joined = " ".join(cell.strip().lower() for cell in row)
+        if "data" in joined and ("valor" in joined or "value" in joined or "amount" in joined):
+            header_row_index = idx
+            break
+
+    header = [cell.strip().lower() for cell in rows[header_row_index]]
     has_header = not re.search(r"\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}", header[0] if header else "")
     if has_header:
         date_idx = next(
@@ -345,7 +353,7 @@ def parse_csv(content: str) -> list[ImportedTransaction]:
             (i for i, h in enumerate(header)
              if "valor" in h or "amount" in h or "value" in h), None
         )
-        start = 1
+        start = header_row_index + 1
     else:
         date_idx, desc_idx, amount_idx = 0, 1, 2
         start = 0
