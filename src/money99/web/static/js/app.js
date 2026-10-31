@@ -97,6 +97,7 @@ async function refreshCache() {
     costCenters,
   };
   renderProfileSelect();
+  updateNavForProfile();
 }
 
 function profileName(id) {
@@ -147,6 +148,14 @@ function applyTheme(theme = "forest") {
 function initTheme() {
   const saved = localStorage.getItem(THEME_KEY) || "forest";
   applyTheme(saved);
+}
+
+function updateNavForProfile() {
+  const profile = currentProfile();
+  const isBusiness = Boolean(profile && profile.kind === "business");
+  document.querySelectorAll('#main-nav a[href="#/mei"]').forEach((el) => {
+    el.style.display = isBusiness ? "" : "none";
+  });
 }
 
 function renderProfileSelect() {
