@@ -40,7 +40,30 @@ def preview():
         parsed = parse_statement(content, filename)
     except StatementParseError as exc:
         return error(str(exc))
-    return jsonify({"count": len(parsed), "transactions": [_serialize(t) for t in parsed]})
+
+    account_id = payload.get("account_id")
+    skipped = 0
+    transactions = parsed
+    if account_id is not None:
+        repo = get_repo()
+        try:
+            repo.get_account(int(account_id))
+        except (LookupError, TypeError, ValueError):
+            return error("conta inválida", 404)
+        existing = _existing_keys(repo, int(account_id))
+        filtered = []
+        for txn in parsed:
+            key = (txn.date, txn.amount, txn.description)
+            if key in existing:
+                skipped += 1
+                continue
+            filtered.append(txn)
+        transactions = filtered
+    return jsonify({
+        "count": len(transactions),
+        "skipped": skipped,
+        "transactions": [_serialize(t) for t in transactions],
+    })
 
 
 @bp.post("/commit")

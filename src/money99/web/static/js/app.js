@@ -1897,14 +1897,14 @@ async function viewImport() {
       }
       const preview = await api("/api/import/preview", {
         method: "POST",
-        body: JSON.stringify({ content, filename }),
+        body: JSON.stringify({ content, filename, account_id: Number(form.account_id.value) || null }),
       });
-      renderImportPreview(preview.transactions, Number(form.account_id.value));
+      renderImportPreview(preview.transactions, Number(form.account_id.value), preview.skipped || 0);
     } catch (err) { toast(err.message, true); }
   });
 }
 
-function renderImportPreview(transactions, accountId) {
+function renderImportPreview(transactions, accountId, skipped = 0) {
   const container = document.getElementById("preview");
   if (!transactions.length) {
     container.innerHTML = "<p class=\"muted\">Nenhuma transação válida foi encontrada para importar.</p>";
@@ -1927,6 +1927,7 @@ function renderImportPreview(transactions, accountId) {
         <span>Conta destino: <strong>${esc(accountName)}</strong></span>
       </div>
       <p class="muted">Revise os itens abaixo antes de confirmar a importação. Os valores serão gravados sem categoria; a categorização pode ser ajustada depois no Extrato.</p>
+      ${skipped ? `<p class="muted">${skipped} lançamento(s) já existente(s) foram ignorados.</p>` : ""}
     </div>
     <table class="grid">
       <thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor</th></tr></thead>
