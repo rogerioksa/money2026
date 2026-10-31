@@ -825,20 +825,27 @@ function startInlineTxnDelete(tr, id) {
       <button class="btn-link danger" data-action="confirm">Excluir</button>
       <button class="btn-link" data-action="cancel">Cancelar</button>
     </td>`;
-  tr.querySelector('[data-action="cancel"]').addEventListener("click", () => navigate());
+  tr.querySelector('[data-action="cancel"]').addEventListener("click", () => {
+    const scrollY = window.scrollY;
+    navigate().then(() => window.scrollTo(0, scrollY));
+  });
   tr.querySelector('[data-action="confirm"]').addEventListener("click", async () => {
     if (!confirmAction("Excluir esta transação? Esta ação não pode ser desfeita.")) {
-      navigate();
+      const scrollY = window.scrollY;
+      navigate().then(() => window.scrollTo(0, scrollY));
       return;
     }
+    const scrollY = window.scrollY;
     try {
       await api(`/api/transactions/${id}`, { method: "DELETE" });
       await refreshCache();
-      navigate();
+      await navigate();
+      window.scrollTo(0, scrollY);
       toast("Transação excluída");
     } catch (err) {
       toast(err.message, true);
-      navigate();
+      const s = window.scrollY;
+      navigate().then(() => window.scrollTo(0, s));
     }
   });
 }
@@ -874,7 +881,10 @@ function startInlineEdit(tr, txn) {
   focusFirstInput(tr);
   if (catSelect) wireCategorySelect(catSelect);
 
-  tr.querySelector('[data-action="cancel"]').addEventListener("click", () => navigate());
+  tr.querySelector('[data-action="cancel"]').addEventListener("click", () => {
+    const scrollY = window.scrollY;
+    navigate().then(() => window.scrollTo(0, scrollY));
+  });
   tr.querySelector('[data-action="save"]').addEventListener("click", async () => {
     const amount = parseBRL(tr.querySelector('[data-field="amount"]').value);
     if (amount === null) { toast("Valor inválido", true); return; }
@@ -892,11 +902,16 @@ function startInlineEdit(tr, txn) {
         : txn.doc_issued,
       category_id: editableCat && catSelect && catSelect.value
         ? Number(catSelect.value) : null,
+      cost_center_id: txn.cost_center_id,
     };
+    const scrollY = window.scrollY;
     try {
       await api(`/api/transactions/${txn.id}`, { method: "PUT", body: JSON.stringify(payload) });
       await refreshCache();
-      navigate();
+      await navigate();
+      window.scrollTo(0, scrollY);
+      const row = document.querySelector(`tr[data-id="${txn.id}"]`);
+      row?.querySelector('[data-action="edit"]')?.focus();
       toast("Salvo!");
     } catch (err) { toast(err.message, true); }
   });
