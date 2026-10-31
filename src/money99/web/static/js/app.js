@@ -474,6 +474,7 @@ async function viewTransactions() {
   if (filters.start) query.set("start", filters.start);
   if (filters.end) query.set("end", filters.end);
   const txns = await api(`/api/transactions?${query}`);
+  const selectedTxnIds = new Set();
   const business = currentProfile()?.kind === "business";
   const today = todayISO();
   const reconciliation = accountId
@@ -540,6 +541,7 @@ async function viewTransactions() {
 
     const dayRows = dayTxns.map((t) => `
       <tr data-id="${t.id}">
+        <td class="cell-select"><input type="checkbox" data-action="select" value="${t.id}" ${selectedTxnIds.has(t.id) ? "checked" : ""}></td>
         <td class="cell-date">${fmtDate(t.date)}${t.date > today ? ' <span class="badge future">futuro</span>' : ""}</td>
         <td class="cell-desc">${esc(t.description)}</td>
         <td class="cell-account">${esc(accountName(t.account_id))}</td>
@@ -562,6 +564,7 @@ async function viewTransactions() {
         </div>
         <table class="grid txn-table">
           <thead><tr>
+            <th><input type="checkbox" data-action="select-all" title="Selecionar todos"></th>
             <th>Data</th><th>Descrição</th><th>Conta</th><th>Categoria</th>
             ${business ? "<th>NF</th>" : ""}
             <th class="num">Valor</th><th>Conc.</th><th></th>
@@ -571,7 +574,17 @@ async function viewTransactions() {
       </div>`);
   }
 
-  const rows = dayGroups.length ? `<div class="txn-day-list">${dayGroups.join("")}</div>` : '<div class="placeholder">Sem transações.</div>';
+  const bulkBar = `
+    <div class="form-row form-flex" style="margin:8px 0;">
+      <button type="button" id="bulk-delete-btn" class="btn-link danger" disabled>Excluir selecionados</button>
+      <button type="button" id="bulk-reconcile-btn" class="btn-link" disabled>Conciliar selecionados</button>
+      <button type="button" id="bulk-unreconcile-btn" class="btn-link" disabled>Desconciliar selecionados</button>
+      <label>Categoria em massa
+        <select id="bulk-category">${categorySelectHtml(null)}</select>
+      </label>
+      <button type="button" id="bulk-category-btn" class="btn-link" disabled>Aplicar categoria</button>
+    </div>`;
+  const rows = dayGroups.length ? `${bulkBar}<div class="txn-day-list">${dayGroups.join("")}</div>` : '<div class="placeholder">Sem transações.</div>';
 
   const reconBanner = reconciliation ? `
     <div class="recon-panel">
@@ -790,6 +803,128 @@ async function viewTransactions() {
       focusFirstInput(document.getElementById("txn-form"));
     }
   });
+
+  const updateBulkState = () => {
+    const count = selectedTxnIds.size;
+    const deleteBtn = document.getElementById("bulk-delete-btn");
+    const recBtn = document.getElementById("bulk-reconcile-btn");
+    const unrecBtn = document.getElementById("bulk-unreconcile-btn");
+    const catBtn = document.getElementById("bulk-category-btn");
+    if (deleteBtn) deleteBtn.disabled = count === 0;
+    if (recBtn) recBtn.disabled = count === 0;
+    if (unrecBtn) unrecBtn.disabled = count === 0;
+    if (catBtn) catBtn.disabled = count === 0;
+  };
+
+  app.querySelectorAll('input[data-action="select"]').forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const id = Number(cb.value);
+      if (cb.checked) selectedTxnIds.add(id); else selectedTxnIds.delete(id);
+      updateBulkState();
+    });
+  });
+
+  app.querySelectorAll('input[data-action="select-all"]').forEach((cb) => {
+    cb.addEventListener("change", () => {
+      const dayCard = cb.closest(".txn-day-card");
+      const ids = dayCard
+        ? Array.from(dayCard.querySelectorAll('input[data-action="select"]')).map((x) => Number(x.value))
+        : txns.map((t) => t.id);
+      ids.forEach((id) => {
+        if (cb.checked) selectedTxnIds.add(id); else selectedTxnIds.delete(id);
+      });
+      dayCard?.querySelectorAll('input[data-action="select"]').forEach((x) => { x.checked = cb.checked; });
+      updateBulkState();
+    });
+  });
+
+  const bulkDeleteBtn = document.getElementById("bulk-delete-btn");
+  if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener("click", async () => {
+      if (!selectedTxnIds.size) return;
+      if (!window.confirm(`Excluir ${selectedTxnIds.size} transação(ões)?`)) return;
+      const scrollY = window.scrollY;
+      try {
+        for (const id of selectedTxnIds) {
+          await api(`/api/transactions/${id}`, { method: "DELETE" });
+        }
+        await refreshCache();
+        await navigate();
+        window.scrollTo(0, scrollY);
+        toast("Transações excluídas");
+      } catch (err) { toast(err.message, true); }
+    });
+  }
+
+  const bulkRecBtn = document.getElementById("bulk-reconcile-btn");
+  if (bulkRecBtn) {
+    bulkRecBtn.addEventListener("click", async () => {
+      if (!selectedTxnIds.size) return;
+      const scrollY = window.scrollY;
+      try {
+        for (const id of selectedTxnIds) {
+          await api(`/api/transactions/${id}/reconcile`, { method: "POST", body: JSON.stringify({ reconciled: true }) });
+        }
+        await refreshCache();
+        await navigate();
+        window.scrollTo(0, scrollY);
+        toast("Transações conciliadas");
+      } catch (err) { toast(err.message, true); }
+    });
+  }
+
+  const bulkUnrecBtn = document.getElementById("bulk-unreconcile-btn");
+  if (bulkUnrecBtn) {
+    bulkUnrecBtn.addEventListener("click", async () => {
+      if (!selectedTxnIds.size) return;
+      const scrollY = window.scrollY;
+      try {
+        for (const id of selectedTxnIds) {
+          await api(`/api/transactions/${id}/reconcile`, { method: "POST", body: JSON.stringify({ reconciled: false }) });
+        }
+        await refreshCache();
+        await navigate();
+        window.scrollTo(0, scrollY);
+        toast("Transações desconciliadas");
+      } catch (err) { toast(err.message, true); }
+    });
+  }
+
+  const bulkCatBtn = document.getElementById("bulk-category-btn");
+  if (bulkCatBtn) {
+    bulkCatBtn.addEventListener("click", async () => {
+      if (!selectedTxnIds.size) return;
+      const catId = document.getElementById("bulk-category").value;
+      const categoryId = catId ? Number(catId) : null;
+      const scrollY = window.scrollY;
+      try {
+        for (const id of selectedTxnIds) {
+          const txn = txns.find((t) => t.id === id);
+          if (!txn || txn.transfer_account_id != null || (txn.splits && txn.splits.length)) continue;
+          await api(`/api/transactions/${id}`, {
+            method: "PUT",
+            body: JSON.stringify({
+              date: txn.date,
+              description: txn.description,
+              account_id: txn.account_id,
+              amount: txn.amount,
+              category_id: categoryId,
+              reconciled: txn.reconciled,
+              doc_issued: txn.doc_issued,
+              cost_center_id: txn.cost_center_id,
+              transfer_account_id: txn.transfer_account_id,
+              splits: txn.splits,
+              notes: txn.notes,
+            }),
+          });
+        }
+        await refreshCache();
+        await navigate();
+        window.scrollTo(0, scrollY);
+        toast("Categoria aplicada");
+      } catch (err) { toast(err.message, true); }
+    });
+  }
 
   app.querySelectorAll("tr[data-id]").forEach((tr) => {
     const id = Number(tr.dataset.id);
