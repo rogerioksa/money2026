@@ -9,6 +9,8 @@ Estrutura interna comum:
 
 from __future__ import annotations
 
+import csv
+import io
 import re
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -257,16 +259,125 @@ def parse_pasted_text(content: str) -> list[ImportedTransaction]:
         raise StatementParseError("formato de texto colado não reconhecido")
     return rows
 
+
+# ---------- CSV ----------
+
+_CSV_DATE_HEADERS = {"data", "date", "data lancamento", "data lançamento", "dt", "dia"}
+_CSV_DESC_HEADERS = {
+    "descricao", "descrição", "historico", "histórico",
+    "description", "memo", "lancamento", "lançamento",
+}
+_CSV_AMOUNT_HEADERS = {"valor", "amount", "quantia", "value", "vl"}
+
+
+def _parse_csv_date(text: str) -> str:
+    value = text.strip()
+    if re.match(r"\d{4}-\d{2}-\d{2}", value):
+        iso = value[:10]
+        parse_iso_date(iso)
+        return iso
+    match = re.search(r"\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}", value)
+    if not match:
+        raise StatementParseError(f"data CSV inválida: {text!r}")
+    raw = match.group(0)
+    parts = re.split(r"[/.\-]", raw)
+    if len(parts) != 3:
+        raise StatementParseError(f"data CSV inválida: {text!r}")
+    day, month, year = parts
+    if len(year) == 2:
+        year = ("19" if int(year) > 50 else "20") + year
+    if not (1 <= int(month) <= 12):
+        day, month = month, day
+    iso = f"{year.zfill(4)}-{month.zfill(2)}-{day.zfill(2)}"
+    parse_iso_date(iso)
+    return iso
+
+
+def _parse_csv_amount(text: str) -> int:
+    value = text.strip().replace("R$", "").replace(" ", "").replace("\u00a0", "")
+    if not value:
+        raise StatementParseError("valor CSV vazio")
+    negative = value.startswith("-") or value.startswith("(")
+    value = value.strip("()").lstrip("+-")
+    if "," in value:
+        value = value.replace(".", "").replace(",", ".")
+    try:
+        cents = int((Decimal(value) * 100).quantize(Decimal("1")))
+    except (InvalidOperation, ValueError) as exc:
+        raise StatementParseError(f"valor monetário inválido: {text!r}") from exc
+    return -cents if negative else cents
+
+
+def parse_csv(content: str) -> list[ImportedTransaction]:
+    """Parseia CSV (delimitador ';' ou ',') com colunas de data, descrição e valor."""
+    lines = [line for line in content.splitlines() if line.strip()]
+    if not lines:
+        raise StatementParseError("conteúdo CSV vazio")
+    first = lines[0]
+    delimiter = ";" if ";" in first else ("," if "," in first else ";")
+    reader = csv.reader(io.StringIO(content), delimiter=delimiter)
+    rows = [r for r in reader if any(cell.strip() for cell in r)]
+    if not rows:
+        raise StatementParseError("conteúdo CSV vazio")
+
+    header = [cell.strip().lower() for cell in rows[0]]
+    has_header = not re.search(r"\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}", header[0] if header else "")
+    if has_header:
+        date_idx = next(
+            (i for i, h in enumerate(header) if "data" in h or "date" in h), None
+        )
+        desc_idx = next(
+            (i for i, h in enumerate(header) if "desc" in h or "hist" in h), None
+        )
+        amount_idx = next(
+            (i for i, h in enumerate(header)
+             if "valor" in h or "amount" in h or "value" in h), None
+        )
+        start = 1
+    else:
+        date_idx, desc_idx, amount_idx = 0, 1, 2
+        start = 0
+
+    if date_idx is None or amount_idx is None:
+        raise StatementParseError("colunas de data/valor não encontradas no CSV")
+
+    result: list[ImportedTransaction] = []
+    for raw in rows[start:]:
+        if len(raw) <= max(date_idx, amount_idx):
+            continue
+        date_text = raw[date_idx].strip()
+        if not date_text:
+            continue
+        try:
+            date_iso = _parse_csv_date(date_text)
+        except StatementParseError:
+            continue
+        amount = _parse_csv_amount(raw[amount_idx])
+        description = raw[desc_idx].strip() if desc_idx is not None and desc_idx < len(raw) else ""
+        if not description:
+            description = "LANÇAMENTO"
+        result.append(ImportedTransaction(
+            date=date_iso,
+            amount=amount,
+            description=_norm(description),
+        ))
+    if not result:
+        raise StatementParseError("formato CSV não reconhecido")
+    return result
+
 # ---------- dispatch ----------
 
 def parse_statement(content: str, filename: str = "") -> list[ImportedTransaction]:
-    """Detecta o formato (OFX, QIF ou texto colado em extrato bancário) e parseia."""
+    """Detecta o formato (OFX, QIF, CSV ou texto colado em extrato bancário) e parseia."""
     head = content[:200].upper()
     lower_name = filename.lower()
+    lines = [line for line in content.splitlines() if line.strip()]
     if "<OFX" in head or lower_name.endswith((".ofx", ".qfx")) or "<STMTTRN>" in content.upper():
         return parse_ofx(content)
     if "!TYPE:" in head or lower_name.endswith(".qif"):
         return parse_qif(content)
+    if lower_name.endswith(".csv") or (lines and ";" in lines[0]):
+        return parse_csv(content)
     if re.search(r"\d{2}[/.\-]\d{2}[/.\-]\d{4}", content):
         return parse_pasted_text(content)
-    raise StatementParseError("formato não reconhecido (esperado QIF, OFX ou texto colado)")
+    raise StatementParseError("formato não reconhecido (esperado QIF, OFX, CSV ou texto colado)")

@@ -1846,7 +1846,7 @@ async function viewImport() {
     <p class="placeholder">Os lançamentos entram sem categoria; categorize depois no Extrato.</p>
     <form id="import-form" class="form-row form-flex import-form-layout">
       <label>Conta <select name="account_id" required>${selectOptions(cache.accounts)}</select></label>
-      <label>Arquivo <input type="file" name="file" accept=".qif,.ofx,.qfx,.txt"></label>
+      <label>Arquivo <input type="file" name="file" accept=".qif,.ofx,.qfx,.txt,.csv"></label>
       <button type="submit">Pré-visualizar</button>
     </form>
     <div class="import-paste-box">
