@@ -310,6 +310,7 @@ def _parse_csv_amount(text: str) -> int:
 
 def parse_csv(content: str) -> list[ImportedTransaction]:
     """Parseia CSV (delimitador ';' ou ',') com colunas de data, descrição e valor."""
+    content = content.lstrip("\ufeff")
     lines = [line for line in content.splitlines() if line.strip()]
     if not lines:
         raise StatementParseError("conteúdo CSV vazio")
@@ -349,6 +350,24 @@ def parse_csv(content: str) -> list[ImportedTransaction]:
         date_idx, desc_idx, amount_idx = 0, 1, 2
         start = 0
 
+    if date_idx is None or amount_idx is None:
+        sample_row = rows[start] if start < len(rows) else (rows[1] if len(rows) > 1 else None)
+        if sample_row:
+            for i, cell in enumerate(sample_row):
+                if date_idx is None and re.search(r"\d{1,2}[/.\-]\d{1,2}[/.\-]\d{2,4}", str(cell)):
+                    date_idx = i
+                if amount_idx is None:
+                    try:
+                        _parse_csv_amount(str(cell))
+                        amount_idx = i
+                    except StatementParseError:
+                        pass
+        if date_idx is None:
+            date_idx = 0
+        if amount_idx is None:
+            amount_idx = 3 if len(rows[0]) >= 5 else 2
+        if desc_idx is None:
+            desc_idx = 1 if amount_idx != 1 else 0
     if date_idx is None or amount_idx is None:
         raise StatementParseError("colunas de data/valor não encontradas no CSV")
 
