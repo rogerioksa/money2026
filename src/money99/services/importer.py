@@ -327,7 +327,18 @@ def parse_csv(content: str) -> list[ImportedTransaction]:
             (i for i, h in enumerate(header) if "data" in h or "date" in h), None
         )
         desc_idx = next(
-            (i for i, h in enumerate(header) if "desc" in h or "hist" in h), None
+            (
+                i for i, h in enumerate(header)
+                if "desc" in h or "hist" in h or "detalhe" in h or "detail" in h
+            ),
+            None,
+        )
+        detail_idx = next(
+            (
+                i for i, h in enumerate(header)
+                if "detalhe" in h or "detail" in h or "memo" in h
+            ),
+            None,
         )
         amount_idx = next(
             (i for i, h in enumerate(header)
@@ -354,6 +365,10 @@ def parse_csv(content: str) -> list[ImportedTransaction]:
             continue
         amount = _parse_csv_amount(raw[amount_idx])
         description = raw[desc_idx].strip() if desc_idx is not None and desc_idx < len(raw) else ""
+        if detail_idx is not None and detail_idx < len(raw):
+            detail = raw[detail_idx].strip()
+            if detail and detail not in description:
+                description = f"{description} {detail}".strip()
         if not description:
             description = "LANÇAMENTO"
         result.append(ImportedTransaction(
