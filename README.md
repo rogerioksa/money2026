@@ -32,6 +32,13 @@ O projeto foi refinado para uso desktop com foco em produtividade e segurança:
 - páginas de impressão com margens reduzidas para relatório e MEI
 - empacotamento com PyInstaller validado por smoke test do executável gerado
 
+## Licença
+
+Distribuído sob a licença **GPL-3.0-or-later** (ver `LICENSE`).
+Software livre: pode ser usado, modificado e redistribuído, inclusive
+comercialmente, desde que o código-fonte correspondente seja disponibilizado
+sob a mesma licença.
+
 ## Documentação
 
 Guias em `docs/` (visão geral, arquitetura, API, banco, build). Em caso de conflito

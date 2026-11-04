@@ -65,6 +65,8 @@ def test_fetch_cnpj_maps_brasilapi_payload(monkeypatch):
         lambda force=False: {"4711301"},
     )
     data = fetch_cnpj("11.222.333/0001-81")
+    from datetime import date
+
     assert data == {
         "cnpj": "11222333000181",
         "legal_name": "EMPRESA TESTE LTDA",
@@ -83,7 +85,7 @@ def test_fetch_cnpj_maps_brasilapi_payload(monkeypatch):
             "allowed_cnaes": ["4711301"],
             "disallowed_cnaes": [],
             "all_allowed": True,
-            "reference_month": "2026-10",
+            "reference_month": date.today().strftime("%Y-%m"),
         },
     }
 
