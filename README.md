@@ -39,6 +39,23 @@ Software livre: pode ser usado, modificado e redistribuído, inclusive
 comercialmente, desde que o código-fonte correspondente seja disponibilizado
 sob a mesma licença.
 
+## Instalação (Windows)
+
+1. Baixe o `Money2026.exe` da página de releases.
+2. (Opcional, recomendado) Verifique o hash SHA-256 do arquivo contra o
+   informado no release:
+   ```powershell
+   Get-FileHash Money2026.exe -Algorithm SHA256
+   ```
+3. Execute o `.exe`. Na primeira execução o Windows SmartScreen pode exibir
+   "Windows protegeu seu PC" (o executável não é assinado). Clique em
+   **Mais informações** → **Executar assim mesmo**.
+4. O aplicativo cria a pasta `data/` (ao lado do `.exe`) com o banco SQLite
+   e a chave de sessão. Faça backup dessa pasta periodicamente.
+
+O código-fonte correspondente está disponível como
+`Money2026-source-v0.1.0-beta.zip` (exigido pela licença GPL-3.0).
+
 ## Documentação
 
 Guias em `docs/` (visão geral, arquitetura, API, banco, build). Em caso de conflito
