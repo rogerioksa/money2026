@@ -872,9 +872,11 @@ async function viewTransactions() {
           const res = await api(`/api/transactions/suggest-link?description=${encodeURIComponent(desc)}`);
           if (res && res.category_id && catSel && !catSel.value) {
             catSel.value = res.category_id;
+            catSel.title = "Preenchido automaticamente pelo histórico";
           }
           if (res && res.cost_center_id && ccSel && !ccSel.value) {
             ccSel.value = res.cost_center_id;
+            ccSel.title = "Preenchido automaticamente pelo histórico";
           }
         } catch (e) {}
       }, 400);
