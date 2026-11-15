@@ -248,3 +248,32 @@ def test_migration_adds_mei_columns(tmp_path):
         assert conn.execute(
             text("SELECT doc_issued FROM transactions WHERE description = 'antiga'")
         ).scalar() == 0
+
+
+def test_legacy_migration_adds_title_cost_center(tmp_path):
+    """Banco antigo (titles sem cost_center_id) é migrado sem perder dados."""
+    db_file = tmp_path / "legacy_titles.sqlite"
+    engine = connect(db_file)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE titles ("
+            "id INTEGER PRIMARY KEY, profile_id INTEGER, type VARCHAR(12),"
+            "description VARCHAR(240), amount INTEGER, due_date VARCHAR(10),"
+            "status VARCHAR(12), account_id INTEGER, category_id INTEGER,"
+            "favorecido VARCHAR(160), favorecido_id INTEGER, notes TEXT,"
+            "paid_date VARCHAR(10), paid_amount INTEGER)"
+        ))
+        conn.execute(text(
+            "INSERT INTO titles (type, description, amount, due_date, status,"
+            " favorecido, notes, paid_date, paid_amount)"
+            " VALUES ('payable', 'Energia', 25000, '2026-06-10', 'open',"
+            " '', '', '', 0)"
+        ))
+    init_db(engine)  # roda a migração
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(titles)"))}
+        assert "cost_center_id" in cols
+        row = conn.execute(
+            text("SELECT description, amount, cost_center_id FROM titles")
+        ).fetchone()
+        assert row == ("Energia", 25000, None)

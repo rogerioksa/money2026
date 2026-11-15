@@ -68,7 +68,7 @@ def preview():
 
 @bp.post("/commit")
 def commit():
-    """Importa transações sem categoria (a categorização é feita no extrato)."""
+    """Importa transações aplicando o vínculo automático descrição -> categoria."""
     payload = request.get_json(silent=True) or {}
     account_id = payload.get("account_id")
     transactions = payload.get("transactions", [])
@@ -93,13 +93,17 @@ def commit():
                 continue
             description = str(item.get("description", ""))
             link = repo.suggest_link(description)
+            category_id = item.get("category_id")
+            cost_center_id = item.get("cost_center_id")
             repo.add_transaction(Transaction(
                 date=str(item.get("date", "")),
                 description=description,
                 account_id=int(account_id),
                 amount=int(item.get("amount", 0)),
-                category_id=item.get("category_id", link.get("category_id")),
-                cost_center_id=item.get("cost_center_id", link.get("cost_center_id")),
+                category_id=category_id if category_id is not None else link.get("category_id"),
+                cost_center_id=(
+                    cost_center_id if cost_center_id is not None else link.get("cost_center_id")
+                ),
             ))
             existing.add(key)
             imported += 1

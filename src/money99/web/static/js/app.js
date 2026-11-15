@@ -867,7 +867,6 @@ async function viewTransactions() {
         if (!desc) return;
         const catSel = form.querySelector('[name="category_id"]');
         const ccSel = form.querySelector('[name="cost_center_id"]');
-        if (catSel && catSel.value) return; // nao sobrescreve escolha manual
         try {
           const res = await api(`/api/transactions/suggest-link?description=${encodeURIComponent(desc)}`);
           if (res && res.category_id && catSel && !catSel.value) {
@@ -2030,6 +2029,18 @@ async function viewTitles() {
           ${ (cache.favorecidos || []).map((f) => `<option value="${f.id}">${esc(f.name)}</option>`).join("") }
         </select>
       </label>
+      <label>Categoria (opcional)
+        <select name="category_id">
+          <option value="">(nenhuma)</option>
+          ${ (cache.categories || []).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("") }
+        </select>
+      </label>
+      <label>Centro de custo (opcional)
+        <select name="cost_center_id">
+          <option value="">(nenhum)</option>
+          ${ (cache.costCenters || []).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("") }
+        </select>
+      </label>
       <label>Vencimento <input type="date" name="due_date" required></label>
       <label>Valor <input name="amount" class="num" value="0,00" required></label>
       <label>Conta (opcional)
@@ -2038,7 +2049,29 @@ async function viewTitles() {
       <button type="submit">Salvar</button>
     </form>`;
 
-  document.getElementById("title-form").addEventListener("submit", async (ev) => {
+  const titleForm = document.getElementById("title-form");
+  const titleDesc = titleForm.querySelector('[name="description"]');
+  if (titleDesc) {
+    let t = null;
+    titleDesc.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(async () => {
+        const desc = titleDesc.value.trim();
+        if (!desc) return;
+        const favSel = titleForm.querySelector('[name="favorecido_id"]');
+        const catSel = titleForm.querySelector('[name="category_id"]');
+        const ccSel = titleForm.querySelector('[name="cost_center_id"]');
+        try {
+          const res = await api(`/api/titles/suggest-link?description=${encodeURIComponent(desc)}`);
+          if (res && res.favorecido_id && favSel && !favSel.value) favSel.value = res.favorecido_id;
+          if (res && res.category_id && catSel && !catSel.value) catSel.value = res.category_id;
+          if (res && res.cost_center_id && ccSel && !ccSel.value) ccSel.value = res.cost_center_id;
+        } catch (e) {}
+      }, 400);
+    });
+  }
+
+  titleForm.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const f = ev.target;
     const amount = parseBRL(f.amount.value);
@@ -2050,6 +2083,8 @@ async function viewTitles() {
           type: f.type.value,
           description: f.description.value,
           favorecido_id: f.favorecido_id.value || null,
+          category_id: f.category_id.value || null,
+          cost_center_id: f.cost_center_id.value || null,
           due_date: f.due_date.value,
           amount,
           account_id: f.account_id.value || null,
@@ -2097,7 +2132,7 @@ async function viewTitles() {
 async function viewImport() {
   app.innerHTML = `
     <h2>Importar extrato (QIF / OFX / texto colado)</h2>
-    <p class="placeholder">Os lançamentos entram sem categoria; categorize depois no Extrato.</p>
+    <p class="placeholder">Categorias e centros de custo são vinculados automaticamente pelo histórico da descrição; ajuste no Extrato se necessário.</p>
     <form id="import-form" class="form-row form-flex import-form-layout">
       <label>Conta <select name="account_id" required>${selectOptions(cache.accounts)}</select></label>
       <label>Arquivo <input type="file" name="file" accept=".qif,.ofx,.qfx,.txt,.csv"></label>
@@ -2195,7 +2230,7 @@ function renderImportPreview(transactions, accountId, skipped = 0) {
         <span>Total movimentado: <strong>${fmtMinor(total)}</strong></span>
         <span>Conta destino: <strong>${esc(accountName)}</strong></span>
       </div>
-      <p class="muted">Revise os itens abaixo antes de confirmar a importação. Os valores serão gravados sem categoria; a categorização pode ser ajustada depois no Extrato.</p>
+      <p class="muted">Revise os itens abaixo antes de confirmar a importação. Descrições já conhecidas recebem categoria e centro de custo automaticamente; ajuste no Extrato se necessário.</p>
       ${skipped ? `<p class="muted">${skipped} lançamento(s) já existente(s) foram ignorados.</p>` : ""}
     </div>
     <table class="grid">
@@ -2206,7 +2241,7 @@ function renderImportPreview(transactions, accountId, skipped = 0) {
 
   const confirmBtn = document.getElementById("import-confirm");
   confirmBtn.addEventListener("click", async () => {
-    const summary = `Confirmar importação de ${transactions.length} transação(ões) no valor total de ${fmtMinor(total)} na conta ${accountName}?\n\nEssa ação grava os registros sem categoria e não pode ser revertida pela interface.`;
+    const summary = `Confirmar importação de ${transactions.length} transação(ões) no valor total de ${fmtMinor(total)} na conta ${accountName}?\n\nDescrições já conhecidas serão categorizadas automaticamente. Essa ação não pode ser revertida pela interface.`;
     if (!window.confirm(summary)) {
       return;
     }

@@ -108,6 +108,9 @@ class TitleRow(Base):
     status: Mapped[str] = mapped_column(String(12), default="open")  # open | paid | cancelled
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    cost_center_id: Mapped[int | None] = mapped_column(
+        ForeignKey("cost_centers.id"), nullable=True
+    )
     favorecido: Mapped[str] = mapped_column(String(160), default="")
     favorecido_id: Mapped[int | None] = mapped_column(ForeignKey("favorecidos.id"), nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")

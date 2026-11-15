@@ -27,6 +27,7 @@ class Title:
     status: str = TitleStatus.OPEN
     account_id: int | None = None
     category_id: int | None = None
+    cost_center_id: int | None = None
     favorecido: str = ""
     favorecido_id: int | None = None
     notes: str = ""

@@ -23,6 +23,7 @@ def _serialize(title):
         "status": title.status,
         "account_id": title.account_id,
         "category_id": title.category_id,
+        "cost_center_id": title.cost_center_id,
         "favorecido": title.favorecido,
         "favorecido_id": title.favorecido_id,
         "notes": title.notes,
@@ -38,6 +39,13 @@ def list_titles():
     status_filter = request.args.get("status")
     titles = repo.list_titles(type=type_filter, status=status_filter)
     return jsonify([_serialize(t) for t in titles])
+
+
+@bp.get("/suggest-link")
+def suggest_title_link():
+    description = request.args.get("description", "")
+    repo = get_repo()
+    return jsonify(repo.suggest_title_link(description))
 
 
 @bp.post("")
@@ -61,6 +69,7 @@ def create_title():
             due_date=str(payload.get("due_date", "")),
             account_id=payload.get("account_id"),
             category_id=payload.get("category_id"),
+            cost_center_id=payload.get("cost_center_id"),
             favorecido=favorecido_name,
             favorecido_id=favorecido_id,
             notes=str(payload.get("notes", "") or ""),
@@ -69,6 +78,8 @@ def create_title():
             title.account_id = int(title.account_id)
         if title.category_id is not None:
             title.category_id = int(title.category_id)
+        if title.cost_center_id is not None:
+            title.cost_center_id = int(title.cost_center_id)
     except (TypeError, ValueError) as exc:
         return error(str(exc))
     try:
@@ -76,6 +87,8 @@ def create_title():
             repo.get_account(title.account_id)
         if title.category_id is not None:
             repo.get_category(title.category_id)
+        if title.cost_center_id is not None:
+            repo.get_cost_center(title.cost_center_id)
     except LookupError as exc:
         return error(str(exc), 404)
     created = repo.add_title(title)
@@ -110,6 +123,7 @@ def update_title(title_id: int):
         status=str(payload.get("status", existing.status)),
         account_id=payload.get("account_id", existing.account_id),
         category_id=payload.get("category_id", existing.category_id),
+        cost_center_id=payload.get("cost_center_id", existing.cost_center_id),
         favorecido=favorecido_name,
         favorecido_id=favorecido_id,
         notes=str(payload.get("notes", existing.notes) or ""),
@@ -120,11 +134,15 @@ def update_title(title_id: int):
         title.account_id = int(title.account_id)
     if title.category_id is not None:
         title.category_id = int(title.category_id)
+    if title.cost_center_id is not None:
+        title.cost_center_id = int(title.cost_center_id)
     try:
         if title.account_id is not None:
             repo.get_account(title.account_id)
         if title.category_id is not None:
             repo.get_category(title.category_id)
+        if title.cost_center_id is not None:
+            repo.get_cost_center(title.cost_center_id)
     except LookupError as exc:
         return error(str(exc), 404)
     try:
@@ -171,6 +189,7 @@ def pay_title(title_id: int):
                 account_id=account_id,
                 amount=amount,
                 category_id=title.category_id,
+                cost_center_id=title.cost_center_id,
             ))
     except (ValueError, TypeError, LookupError) as exc:
         return error(str(exc))

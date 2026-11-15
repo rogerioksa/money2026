@@ -51,6 +51,20 @@ def _activity_value(activity) -> str:
     return getattr(activity, "value", activity) or "servicos"
 
 
+def _most_common(values):
+    """Valor não-nulo mais frequente de um iterável (None se não houver)."""
+    counts: dict[object, int] = {}
+    for value in values:
+        if value is None:
+            continue
+        if isinstance(value, str) and not value.strip():
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    if not counts:
+        return None
+    return max(counts, key=lambda key: counts[key])
+
+
 class Repository:
     def __init__(self, session: Session, profile_id: int | None = None):
         self.session = session
@@ -336,20 +350,71 @@ class Repository:
             raise LookupError(f"transação {txn_id} não encontrada")
         return self._to_transaction(row)
 
+    @staticmethod
+    def _description_matches(item, needle: str) -> bool:
+        return (getattr(item, "description", "") or "").strip().upper() == needle
+
     def suggest_link(self, description: str) -> dict:
-        if not description:
-            return {"category_id": None, "cost_center_id": None}
-        needle = description.strip().upper()
-        counts = {}
+        """Sugere categoria e centro de custo a partir da descrição.
+
+        Categoria e centro são resolvidos de forma independente: o vínculo
+        principal é descrição -> categoria; o centro de custo é um complemento
+        e não impede a sugestão da categoria (nem vice-versa).
+        """
+        result = {"category_id": None, "cost_center_id": None}
+        needle = (description or "").strip().upper()
+        if not needle:
+            return result
+        categories = []
+        cost_centers = []
         for txn in self.list_transactions():
-            if (txn.description or "").strip().upper() != needle:
+            if not self._description_matches(txn, needle):
                 continue
-            key = (txn.category_id, txn.cost_center_id)
-            counts[key] = counts.get(key, 0) + 1
-        if not counts:
-            return {"category_id": None, "cost_center_id": None}
-        best = max(counts, key=lambda k: counts[k])
-        return {"category_id": best[0], "cost_center_id": best[1]}
+            if txn.category_id is not None:
+                categories.append(txn.category_id)
+            elif txn.splits:
+                categories.extend(
+                    split.category_id for split in txn.splits
+                    if split.category_id is not None
+                )
+            if txn.cost_center_id is not None:
+                cost_centers.append(txn.cost_center_id)
+            elif txn.splits:
+                cost_centers.extend(
+                    split.cost_center_id for split in txn.splits
+                    if split.cost_center_id is not None
+                )
+        result["category_id"] = _most_common(categories)
+        result["cost_center_id"] = _most_common(cost_centers)
+        return result
+
+    def suggest_title_link(self, description: str) -> dict:
+        """Sugere vínculos para títulos (CAR/CAP).
+
+        Usa o histórico de títulos com a mesma descrição e, quando não houver
+        categoria/centro ali, recorre ao histórico de transações.
+        """
+        result = {
+            "category_id": None,
+            "cost_center_id": None,
+            "favorecido_id": None,
+            "favorecido": None,
+        }
+        needle = (description or "").strip().upper()
+        if not needle:
+            return result
+        titles = [t for t in self.list_titles() if self._description_matches(t, needle)]
+        if titles:
+            result["category_id"] = _most_common(t.category_id for t in titles)
+            result["cost_center_id"] = _most_common(t.cost_center_id for t in titles)
+            result["favorecido_id"] = _most_common(t.favorecido_id for t in titles)
+            result["favorecido"] = _most_common(t.favorecido for t in titles)
+        txn_link = self.suggest_link(description)
+        if result["category_id"] is None:
+            result["category_id"] = txn_link["category_id"]
+        if result["cost_center_id"] is None:
+            result["cost_center_id"] = txn_link["cost_center_id"]
+        return result
 
     def list_transactions(
         self,
@@ -487,6 +552,7 @@ class Repository:
             status=title.status,
             account_id=title.account_id,
             category_id=title.category_id,
+            cost_center_id=title.cost_center_id,
             favorecido=title.favorecido,
             favorecido_id=title.favorecido_id,
             notes=title.notes,
@@ -510,6 +576,7 @@ class Repository:
         row.status = title.status
         row.account_id = title.account_id
         row.category_id = title.category_id
+        row.cost_center_id = title.cost_center_id
         row.favorecido = title.favorecido
         row.favorecido_id = title.favorecido_id
         row.notes = title.notes
@@ -533,6 +600,7 @@ class Repository:
             status=row.status or "open",
             account_id=row.account_id,
             category_id=row.category_id,
+            cost_center_id=row.cost_center_id,
             favorecido=row.favorecido or "",
             favorecido_id=row.favorecido_id,
             notes=row.notes or "",

@@ -148,6 +148,7 @@ def _migrate(engine: Engine) -> None:
             ("status", "VARCHAR(12)"),
             ("account_id", "INTEGER"),
             ("category_id", "INTEGER"),
+            ("cost_center_id", "INTEGER"),
             ("favorecido", "VARCHAR(160)"),
             ("favorecido_id", "INTEGER"),
             ("notes", "TEXT"),
