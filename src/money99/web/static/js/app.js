@@ -9,18 +9,36 @@ let cache = { accounts: [], categories: [], profiles: [], profileId: null };
 // ---------- utilitários ----------
 
 function fmtMinor(minor) {
-  const v = Math.abs(minor) / 100;
-  const s = v.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
-  return minor < 0 ? `-R$ ${s}` : `R$ ${s}`;
+  const neg = minor < 0;
+  const abs = Math.abs(minor);
+  const reaisInt = Math.trunc(abs / 100);
+  const cents = abs % 100;
+  const intStr = String(reaisInt).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const centsStr = String(cents).padStart(2, "0");
+  return (neg ? "-" : "") + "R$ " + intStr + "," + centsStr;
 }
 
 function parseBRL(text) {
-  const cleaned = String(text).trim().replace(/R\$\s?/, "").replace(/\u00a0/g, "")
-    .replace(/\./g, "").replace(",", ".");
+  const cleaned = String(text || "").trim().replace(/R\$\s?/, "").replace(/\u00a0/g, "");
   if (cleaned === "" || cleaned === "-") return null;
-  const value = Number(cleaned);
-  if (Number.isNaN(value)) return null;
-  return Math.round(value * 100);
+  // Normaliza separadores pt-BR: 1.234,56 -> 1234.56
+  const normalized = cleaned.includes(",")
+    ? cleaned.replace(/\./g, "").replace(",", ".")
+    : cleaned.replace(/\./g, "");
+  const parts = normalized.split(".");
+  if (parts.length > 2) return null;
+  const intPart = parts[0];
+  if (intPart === "" || intPart === "-") return null;
+  const decPart = parts[1] || "";
+  if (decPart.length > 2) return null; // sem arredondamento silencioso
+  const sign = intPart.startsWith("-") ? -1 : 1;
+  const intAbs = intPart.replace("-", "");
+  if (!/^\d+$/.test(intAbs)) return null;
+  if (decPart && !/^\d+$/.test(decPart)) return null;
+  const decPadded = (decPart + "00").slice(0, 2);
+  const total = (parseInt(intAbs || "0", 10) * 100 + parseInt(decPadded, 10)) * sign;
+  if (!Number.isFinite(total)) return null;
+  return total;
 }
 
 function fmtDate(iso) {
@@ -1275,7 +1293,7 @@ async function viewBudget() {
 
   const monthlyAlertIds = new Set((alerts.monthly || []).map((a) => a.category_id));
   const body = rows.map((r) => {
-    const pct = r.planned > 0 ? Math.min(100, Math.round((r.actual / r.planned) * 100)) : 0;
+    const pct = r.planned > 0 ? Math.min(100, Math.trunc((r.actual * 100) / r.planned)) : 0;
     const over = r.planned > 0 && r.actual > r.planned;
     const status = monthlyAlertIds.has(r.category_id) ? "Estouro mensal" : (pct >= 80 ? "Atenção" : "OK");
     return `
@@ -1366,10 +1384,11 @@ async function viewBudget() {
   const avgExpense = monthlyExpenses > 0 ? monthlyExpenses : 1;
   const coverage = netWorth.total > 0 ? (netWorth.total / avgExpense).toFixed(1) : "0.0";
   const runway = coverage;
-  const worstCase = forecast.map((f) => ({
-    month: f.month,
-    balance: (netWorth.total || 0) + (f.projected_balance - (netWorth.total || 0)) * 0.8,
-  }));
+  const worstCase = forecast.map((f) => {
+    const total = netWorth.total || 0;
+    const diff = f.projected_balance - total;
+    return { month: f.month, balance: total + Math.trunc((diff * 4) / 5) };
+  });
   const cutSuggestions = rows
     .filter((r) => r.planned > 0 && r.actual > r.planned)
     .sort((a, b) => (b.actual - b.planned) - (a.actual - a.planned))
@@ -1391,7 +1410,7 @@ async function viewBudget() {
         <p><b>Cenário base (6 meses):</b></p>
         <ul>${forecast.slice(0, 6).map((f) => `<li>${esc(f.month)}: ${fmtMinor(f.projected_balance)}</li>`).join("")}</ul>
         <p><b>Cenário conservador:</b></p>
-        <ul>${worstCase.slice(0, 6).map((f) => `<li>${esc(f.month)}: ${fmtMinor(Math.round(f.balance))}</li>`).join("")}</ul>
+        <ul>${worstCase.slice(0, 6).map((f) => `<li>${esc(f.month)}: ${fmtMinor(f.balance)}</li>`).join("")}</ul>
       </section>
     </div>
     <h4>Cortes sugeridos</h4>
@@ -1505,7 +1524,7 @@ async function viewDashboard() {
     </tr>`).join("");
 
   const creditPct = data.credit.limit_total > 0
-    ? Math.min(100, Math.round((data.credit.used_total / data.credit.limit_total) * 100))
+    ? Math.min(100, Math.trunc((data.credit.used_total * 100) / data.credit.limit_total))
     : 0;
 
   const recentTxns = [...monthTxns].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 8);
@@ -1528,7 +1547,7 @@ async function viewDashboard() {
 
   const thisExpense = monthTxns.reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0);
   const prevExpense = prevTxns.reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0);
-  const expenseChange = prevExpense > 0 ? Math.round(((thisExpense - prevExpense) / prevExpense) * 100) : null;
+  const expenseChange = prevExpense > 0 ? Math.trunc(((thisExpense - prevExpense) * 100) / prevExpense) : null;
 
   app.innerHTML = `
     <h2>Painel</h2>

@@ -89,13 +89,7 @@ def actual_by_account(repo: Repository, year: int, month: int | None = None) -> 
         for txn in repo.list_transactions(start=start, end=end):
             if txn.transfer_account_id is not None:
                 continue
-            amount = 0
-            if txn.splits:
-                amount = sum(abs(s.amount) for s in txn.splits)
-            elif txn.category_id is not None:
-                amount = abs(txn.amount)
-            else:
-                amount = abs(txn.amount)
+            amount = abs(txn.amount)
             totals[txn.account_id] = totals.get(txn.account_id, 0) + amount
     result = []
     for acc in repo.list_accounts():

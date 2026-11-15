@@ -13,7 +13,7 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from money99.domain.money import parse_iso_date
 
@@ -187,8 +187,10 @@ def _parse_br_money(text: str) -> int:
     value = value.replace("-", "")
     value = value.replace("R$", "", 1).replace(" ", "")
     value = value.replace(".", "").replace(",", ".")
+    if not value:
+        raise StatementParseError(f"valor monetário inválido: {text!r}")
     try:
-        cents = (Decimal(value) * 100).quantize(Decimal("1"))
+        cents = (Decimal(value) * 100).to_integral_value(rounding=ROUND_HALF_UP)
     except InvalidOperation as exc:
         raise StatementParseError(f"valor monetário inválido: {text!r}") from exc
     return int(cents)

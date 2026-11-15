@@ -121,7 +121,7 @@ def monthly_report(repo, year: int) -> dict:
 
     profile = repo.get_profile(repo.profile_id) if repo.profile_id else None
     annual_limit = profile.annual_limit if profile else 0
-    used_pct = round((revenue_total / annual_limit) * 100) if annual_limit else 0
+    used_pct = (revenue_total * 100) // annual_limit if annual_limit else 0
     return {
         "year": year,
         "months": lines,
