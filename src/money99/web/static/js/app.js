@@ -1280,7 +1280,7 @@ async function viewBudget() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Conta</th><th class="num">Realizado</th></tr></thead>
-        <tbody>${accountBody || '<tr><td colspan="2" class="placeholder">Sem gastos.</td></tr>'}</tbody>
+        <tbody>${accountBody || '<tr><td colspan="2" class="placeholder">Sem gastos no período — categorize lançamentos para aparecer aqui.</td></tr>'}</tbody>
       </table>
     </div>`;
   const annualContainerEl = document.getElementById("annual-budget");
@@ -1527,7 +1527,7 @@ async function viewDashboard() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Data</th><th>Descrição</th><th class="num">Valor</th></tr></thead>
-        <tbody>${recentRows || '<tr><td colspan="3" class="placeholder">Sem movimentos.</td></tr>'}</tbody>
+        <tbody>${recentRows || '<tr><td colspan="3" class="placeholder">Sem movimentos no período — ajuste os filtros ou lance uma transação.</td></tr>'}</tbody>
       </table>
     </div>
 
@@ -1544,7 +1544,7 @@ async function viewDashboard() {
       <thead><tr><th>Conta</th><th>Tipo</th><th class="num">Saldo</th>
         <th class="num" title="Lançamentos futuros">Futuros</th>
         <th class="num">Limite</th><th class="num">Disponível</th></tr></thead>
-      <tbody>${accountRows || '<tr><td colspan="6" class="placeholder">Sem contas.</td></tr>'}</tbody>
+      <tbody>${accountRows || '<tr><td colspan="6" class="placeholder">Sem contas ainda — cadastre a primeira em "Contas".</td></tr>'}</tbody>
     </table>`;
 
   document.getElementById("dash-nav").addEventListener("submit", (ev) => {
@@ -1649,7 +1649,7 @@ async function viewReports() {
         <div class="table-wrap">
           <table class="grid">
             <thead><tr><th>Categoria</th><th class="num">Total</th></tr></thead>
-            <tbody>${spendRows || '<tr><td colspan="2" class="placeholder">Sem gastos.</td></tr>'}</tbody>
+            <tbody>${spendRows || '<tr><td colspan="2" class="placeholder">Sem gastos no período — categorize lançamentos para aparecer aqui.</td></tr>'}</tbody>
           </table>
         </div>
       </section>
@@ -1663,7 +1663,7 @@ async function viewReports() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Conta</th><th class="num">Saldo</th></tr></thead>
-        <tbody>${worthRows || '<tr><td colspan="2" class="placeholder">Sem contas.</td></tr>'}</tbody>
+        <tbody>${worthRows || '<tr><td colspan="2" class="placeholder">Sem contas ainda — cadastre a primeira em "Contas".</td></tr>'}</tbody>
       </table>
     </div>
 
@@ -1706,7 +1706,7 @@ async function viewReports() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Centro de custo</th><th class="num">Total</th></tr></thead>
-        <tbody>${ccRows || '<tr><td colspan="2" class="placeholder">Sem centros de custo.</td></tr>'}</tbody>
+        <tbody>${ccRows || '<tr><td colspan="2" class="placeholder">Sem centros de custo ainda — crie em "Centros de custo".</td></tr>'}</tbody>
       </table>
     </div>
 
@@ -1714,7 +1714,7 @@ async function viewReports() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Conta</th><th class="num">Total</th></tr></thead>
-        <tbody>${accountRowsReport || '<tr><td colspan="2" class="placeholder">Sem contas.</td></tr>'}</tbody>
+        <tbody>${accountRowsReport || '<tr><td colspan="2" class="placeholder">Sem contas ainda — cadastre a primeira em "Contas".</td></tr>'}</tbody>
       </table>
     </div>
 
@@ -1757,7 +1757,7 @@ async function viewCostCenters() {
     <div class="table-wrap">
       <table class="grid">
         <thead><tr><th>Nome</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="3" class="placeholder">Sem centros de custo.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="3" class="placeholder">Sem centros de custo ainda — crie em "Centros de custo".</td></tr>'}</tbody>
       </table>
     </div>
     <h3>Novo centro de custo</h3>
@@ -1813,7 +1813,7 @@ async function viewFavorecidos() {
       <table class="grid">
         <thead><tr><th>Nome</th><th>Tipo</th><th>Documento</th><th>Telefone</th>
           <th>Status</th><th></th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="6" class="placeholder">Sem favorecidos.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="6" class="placeholder">Sem favorecidos ainda — cadastre clientes/fornecedores em "Favorecidos".</td></tr>'}</tbody>
       </table>
     </div>
     <h3>Novo favorecido</h3>
