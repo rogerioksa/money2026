@@ -92,6 +92,13 @@
     font-size: 14px;
   }
 
+  input[type="text"],
+  input:not([type]),
+  textarea,
+  select {
+    text-transform: uppercase;
+  }
+
   button,
   input,
   select,

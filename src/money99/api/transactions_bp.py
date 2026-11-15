@@ -105,6 +105,13 @@ def update_transaction(txn_id: int):
     return jsonify(_serialize(updated))
 
 
+@bp.get("/suggest-link")
+def suggest_link():
+    description = request.args.get("description", "")
+    repo = get_repo()
+    return jsonify(repo.suggest_link(description))
+
+
 @bp.delete("/<int:txn_id>")
 def delete_transaction(txn_id: int):
     repo = get_repo()

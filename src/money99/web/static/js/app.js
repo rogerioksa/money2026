@@ -855,6 +855,31 @@ async function viewTransactions() {
     } catch (e) {}
   };
   form.addEventListener("input", saveDraft);
+
+  // Auto-vinculo de categoria/centro de custo pela descricao
+  const descInput = form.querySelector('[name="description"]');
+  if (descInput) {
+    let suggestTimer = null;
+    descInput.addEventListener("input", () => {
+      clearTimeout(suggestTimer);
+      suggestTimer = setTimeout(async () => {
+        const desc = descInput.value.trim();
+        if (!desc) return;
+        const catSel = form.querySelector('[name="category_id"]');
+        const ccSel = form.querySelector('[name="cost_center_id"]');
+        if (catSel && catSel.value) return; // nao sobrescreve escolha manual
+        try {
+          const res = await api(`/api/transactions/suggest-link?description=${encodeURIComponent(desc)}`);
+          if (res && res.category_id && catSel && !catSel.value) {
+            catSel.value = res.category_id;
+          }
+          if (res && res.cost_center_id && ccSel && !ccSel.value) {
+            ccSel.value = res.cost_center_id;
+          }
+        } catch (e) {}
+      }, 400);
+    });
+  }
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (raw) {

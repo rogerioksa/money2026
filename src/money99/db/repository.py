@@ -336,6 +336,21 @@ class Repository:
             raise LookupError(f"transação {txn_id} não encontrada")
         return self._to_transaction(row)
 
+    def suggest_link(self, description: str) -> dict:
+        if not description:
+            return {"category_id": None, "cost_center_id": None}
+        needle = description.strip().upper()
+        counts = {}
+        for txn in self.list_transactions():
+            if (txn.description or "").strip().upper() != needle:
+                continue
+            key = (txn.category_id, txn.cost_center_id)
+            counts[key] = counts.get(key, 0) + 1
+        if not counts:
+            return {"category_id": None, "cost_center_id": None}
+        best = max(counts, key=lambda k: counts[k])
+        return {"category_id": best[0], "cost_center_id": best[1]}
+
     def list_transactions(
         self,
         *,

@@ -91,11 +91,15 @@ def commit():
             if key in existing:
                 skipped += 1
                 continue
+            description = str(item.get("description", ""))
+            link = repo.suggest_link(description)
             repo.add_transaction(Transaction(
                 date=str(item.get("date", "")),
-                description=str(item.get("description", "")),
+                description=description,
                 account_id=int(account_id),
                 amount=int(item.get("amount", 0)),
+                category_id=item.get("category_id", link.get("category_id")),
+                cost_center_id=item.get("cost_center_id", link.get("cost_center_id")),
             ))
             existing.add(key)
             imported += 1
