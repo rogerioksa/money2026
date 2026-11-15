@@ -53,6 +53,15 @@ def _parse_payload(payload: dict) -> Transaction:
     )
 
 
+@bp.get("/descriptions")
+def list_descriptions():
+    repo = get_repo()
+    return jsonify(repo.list_descriptions(
+        query=request.args.get("q", ""),
+        limit=request.args.get("limit", 20, type=int),
+    ))
+
+
 @bp.get("")
 def list_transactions():
     repo = get_repo()

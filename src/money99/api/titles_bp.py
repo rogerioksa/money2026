@@ -41,6 +41,15 @@ def list_titles():
     return jsonify([_serialize(t) for t in titles])
 
 
+@bp.get("/descriptions")
+def list_title_descriptions():
+    repo = get_repo()
+    return jsonify(repo.list_title_descriptions(
+        query=request.args.get("q", ""),
+        limit=request.args.get("limit", 0, type=int),
+    ))
+
+
 @bp.get("/suggest-link")
 def suggest_title_link():
     description = request.args.get("description", "")

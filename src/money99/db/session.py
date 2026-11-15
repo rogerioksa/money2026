@@ -214,6 +214,11 @@ def _migrate(engine: Engine) -> None:
             conn.execute(text(
                 "UPDATE transactions SET amount = 0 WHERE amount IS NULL"
             ))
+            # Índice de apoio ao autocomplete de descrições do extrato.
+            conn.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_transactions_profile_description"
+                " ON transactions (profile_id, description)"
+            ))
         if inspector.has_table("budgets"):
             conn.execute(text(
                 "UPDATE budgets SET planned = 0 WHERE planned IS NULL"

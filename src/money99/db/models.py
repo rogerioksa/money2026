@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -49,6 +49,9 @@ class CategoryRow(Base):
 
 class TransactionRow(Base):
     __tablename__ = "transactions"
+    __table_args__ = (
+        Index("ix_transactions_profile_description", "profile_id", "description"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     profile_id: Mapped[int | None] = mapped_column(ForeignKey("profiles.id"), nullable=True)

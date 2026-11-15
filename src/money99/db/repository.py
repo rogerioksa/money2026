@@ -388,6 +388,53 @@ class Repository:
         result["cost_center_id"] = _most_common(cost_centers)
         return result
 
+    def _description_index(self, model, query: str, limit: int) -> list[dict]:
+        """Agrupa descrições distintas de uma tabela para autocomplete.
+
+        `limit=0` retorna todas as descrições. Quando há busca, prioriza as que
+        começam com o termo e depois as mais usadas.
+        """
+        try:
+            limit = int(limit)
+        except (TypeError, ValueError):
+            limit = 0
+        limit = min(limit, 10000) if limit > 0 else None
+
+        uses = func.count(model.id)
+        stmt = (
+            select(model.description, uses.label("uses"))
+            .where(model.description.is_not(None))
+            .where(func.trim(model.description) != "")
+            .group_by(model.description)
+            .limit(limit)
+        )
+        stmt = self._scope(stmt, model)
+
+        needle = (query or "").strip().upper()
+        if needle:
+            upper_desc = func.upper(model.description)
+            stmt = stmt.where(upper_desc.contains(needle, autoescape=True))
+            stmt = stmt.order_by(
+                case((upper_desc.startswith(needle, autoescape=True), 0), else_=1),
+                uses.desc(),
+                model.description.asc(),
+            )
+        else:
+            stmt = stmt.order_by(uses.desc(), model.description.asc())
+
+        return [
+            {"description": description, "count": int(count)}
+            for description, count in self.session.execute(stmt)
+        ]
+
+    def list_descriptions(self, query: str = "", limit: int = 20) -> list[dict]:
+        """Índice de descrições do extrato para autocomplete."""
+        return self._description_index(TransactionRow, query, limit)
+
+    def list_title_descriptions(self, query: str = "", limit: int = 0) -> list[dict]:
+        """Índice de descrições dos títulos (CAR/CAP) para autocomplete."""
+        return self._description_index(TitleRow, query, limit)
+
     def suggest_title_link(self, description: str) -> dict:
         """Sugere vínculos para títulos (CAR/CAP).
 

@@ -156,6 +156,8 @@ def test_legacy_migration_adds_missing_column(tmp_path):
         assert "reconciled" in cols
         row = conn.execute(text("SELECT description, amount FROM transactions")).fetchone()
         assert row == ("antiga", -999)
+        indexes = {r[1] for r in conn.execute(text("PRAGMA index_list(transactions)"))}
+        assert "ix_transactions_profile_description" in indexes
 
 
 def test_legacy_migration_adds_credit_limit(tmp_path):

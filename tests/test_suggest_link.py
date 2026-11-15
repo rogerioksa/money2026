@@ -115,6 +115,77 @@ def test_title_suggest_link_and_cost_center_roundtrip(client):
     assert txns[0]["cost_center_id"] == cc["id"]
 
 
+def test_descriptions_index_orders_by_usage(client):
+    account = create_account(client)
+    add_txn(client, account["id"], "MERCADO")
+    add_txn(client, account["id"], "MERCADO")
+    add_txn(client, account["id"], "FARMACIA")
+    add_txn(client, account["id"], "", amount=-500)
+
+    body = client.get("/api/transactions/descriptions").get_json()
+    assert body[0] == {"description": "MERCADO", "count": 2}
+    assert {row["description"] for row in body} == {"MERCADO", "FARMACIA"}
+
+
+def test_descriptions_index_filters_substring_case_insensitive(client):
+    account = create_account(client)
+    add_txn(client, account["id"], "MERCADO CENTRAL")
+    add_txn(client, account["id"], "FARMACIA")
+
+    body = client.get("/api/transactions/descriptions?q=central").get_json()
+    assert [row["description"] for row in body] == ["MERCADO CENTRAL"]
+
+
+def test_descriptions_index_prefers_prefix_matches(client):
+    account = create_account(client)
+    for _ in range(3):
+        add_txn(client, account["id"], "SUPERMERCADO")
+    add_txn(client, account["id"], "MERCADO")
+
+    body = client.get("/api/transactions/descriptions?q=MERCADO").get_json()
+    assert [row["description"] for row in body] == ["MERCADO", "SUPERMERCADO"]
+
+
+def test_descriptions_index_respects_limit(client):
+    account = create_account(client)
+    for name in ("ALFA", "BETA", "GAMA"):
+        add_txn(client, account["id"], name)
+
+    body = client.get("/api/transactions/descriptions?limit=2").get_json()
+    assert len(body) == 2
+
+
+def test_descriptions_index_limit_zero_returns_all(client):
+    account = create_account(client)
+    for index in range(25):
+        add_txn(client, account["id"], f"DESPESA {index:02d}")
+
+    body = client.get("/api/transactions/descriptions?limit=0").get_json()
+    assert len(body) == 25
+
+
+def test_title_descriptions_index(client):
+    def add_title(description):
+        res = client.post("/api/titles", json={
+            "type": "payable",
+            "description": description,
+            "amount": 10000,
+            "due_date": "2026-06-10",
+        })
+        assert res.status_code == 201
+
+    add_title("ENERGIA")
+    add_title("ENERGIA")
+    add_title("AGUA")
+
+    body = client.get("/api/titles/descriptions").get_json()
+    assert body[0] == {"description": "ENERGIA", "count": 2}
+    assert {row["description"] for row in body} == {"ENERGIA", "AGUA"}
+
+    filtered = client.get("/api/titles/descriptions?q=gua").get_json()
+    assert [row["description"] for row in filtered] == ["AGUA"]
+
+
 def test_title_suggest_link_falls_back_to_transactions(client):
     account = create_account(client)
     cat = categories(client)[0]

@@ -83,6 +83,14 @@ function esc(text) {
   return div.innerHTML;
 }
 
+let descriptionIndex = null;
+let descriptionIndexPromise = null;
+
+function invalidateDescriptionIndex() {
+  descriptionIndex = null;
+  descriptionIndexPromise = null;
+}
+
 async function api(url, options = {}) {
   const res = await fetch(url, {
     headers: { "Content-Type": "application/json" },
@@ -94,7 +102,86 @@ async function api(url, options = {}) {
   }
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  if (options.method && options.method !== "GET"
+      && /^\/api\/(transactions|titles|import|maintenance)\b/.test(url)) {
+    invalidateDescriptionIndex();
+  }
   return body;
+}
+
+// Índice completo (JSON) de descrições do extrato + títulos, carregado uma vez.
+async function loadDescriptionIndex() {
+  if (descriptionIndex) return descriptionIndex;
+  if (!descriptionIndexPromise) {
+    descriptionIndexPromise = (async () => {
+      const [txns, titles] = await Promise.all([
+        api("/api/transactions/descriptions?limit=0"),
+        api("/api/titles/descriptions?limit=0").catch(() => []),
+      ]);
+      const merged = new Map();
+      for (const row of [...txns, ...titles]) {
+        const current = merged.get(row.description);
+        if (current) current.count += row.count;
+        else merged.set(row.description, {
+          description: row.description,
+          count: row.count,
+        });
+      }
+      descriptionIndex = Array.from(merged.values());
+      return descriptionIndex;
+    })().finally(() => { descriptionIndexPromise = null; });
+  }
+  return descriptionIndexPromise;
+}
+
+function filterDescriptions(items, query, limit = 20) {
+  const needle = (query || "").trim().toUpperCase();
+  let rows = items;
+  if (needle) {
+    rows = items.filter((row) => row.description.toUpperCase().includes(needle));
+    rows.sort((a, b) => {
+      const aPrefix = a.description.toUpperCase().startsWith(needle) ? 0 : 1;
+      const bPrefix = b.description.toUpperCase().startsWith(needle) ? 0 : 1;
+      if (aPrefix !== bPrefix) return aPrefix - bPrefix;
+      return b.count - a.count || a.description.localeCompare(b.description);
+    });
+  } else {
+    rows = items.slice().sort(
+      (a, b) => b.count - a.count || a.description.localeCompare(b.description)
+    );
+  }
+  return rows.slice(0, limit);
+}
+
+function renderDescriptionOptions(datalist, rows) {
+  if (!datalist) return;
+  datalist.textContent = "";
+  for (const row of rows || []) {
+    const option = document.createElement("option");
+    option.value = row.description;
+    if (row.count > 1) option.label = `${row.count} usos`;
+    datalist.appendChild(option);
+  }
+}
+
+// Autocomplete local sobre o índice completo de descrições.
+function wireDescriptionAutocomplete(input, datalistId) {
+  if (!input) return;
+  const datalist = document.getElementById(datalistId);
+  if (!datalist) return;
+  let timer = null;
+  const load = async (query) => {
+    try {
+      const items = await loadDescriptionIndex();
+      renderDescriptionOptions(datalist, filterDescriptions(items, query));
+    } catch (e) {}
+  };
+  input.setAttribute("list", datalistId);
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => load(input.value), 200);
+  });
+  input.addEventListener("focus", () => load(input.value));
 }
 
 async function refreshCache() {
@@ -190,6 +277,7 @@ async function switchProfile(profileId) {
     body: JSON.stringify({ profile_id: Number(profileId) }),
   });
   cache.profileId = Number(profileId);
+  invalidateDescriptionIndex();
   await refreshCache();
   navigate();
 }
@@ -682,7 +770,7 @@ async function viewTransactions() {
       </div>
       <form id="txn-form" class="form-row form-flex txn-form-new">
         <label title="Data do lançamento">Data <input type="date" name="date" value="${todayISO()}" required></label>
-        <label title="Descrição livre (opcional)">Descrição <input name="description" maxlength="240"></label>
+        <label title="Descrição livre (opcional)">Descrição <input name="description" maxlength="240" list="txn-description-options"></label>
         <label title="Conta de origem/destino">Conta <select name="account_id" required>${selectOptions(cache.accounts, accountId)}</select></label>
         <label title="Categoria da despesa/receita (vazio = pendente de categorização)">Categoria <select name="category_id">${categorySelectHtml(null)}</select></label>
         <label title="Centro de custo para relatórios">Centro de custo <select name="cost_center_id">${selectOptions(cache.costCenters || [])}</select></label>
@@ -690,6 +778,7 @@ async function viewTransactions() {
         ${business ? '<label class="check" title="Documento fiscal emitido (venda para PJ)"><input type="checkbox" name="doc_issued"> NF emitida</label>' : ""}
         <button type="submit">Lançar</button>
       </form>
+      <datalist id="txn-description-options"></datalist>
     </div>`;
 
   document.getElementById("filter-form").addEventListener("submit", (ev) => {
@@ -858,6 +947,7 @@ async function viewTransactions() {
 
   // Auto-vinculo de categoria/centro de custo pela descricao
   const descInput = form.querySelector('[name="description"]');
+  wireDescriptionAutocomplete(descInput, "txn-description-options");
   if (descInput) {
     let suggestTimer = null;
     descInput.addEventListener("input", () => {
@@ -1112,7 +1202,7 @@ function startInlineEdit(tr, txn) {
   tr.classList.add("editing");
   tr.innerHTML = `
     <td class="cell-date"><input type="date" data-field="date" value="${esc(txn.date)}"></td>
-    <td class="cell-desc"><input data-field="description" maxlength="240" value="${esc(txn.description)}"></td>
+    <td class="cell-desc"><input data-field="description" maxlength="240" list="txn-description-options" value="${esc(txn.description)}"></td>
     <td class="cell-account">
       <select data-field="account_id">${selectOptions(cache.accounts, txn.account_id)}</select>
     </td>
@@ -1130,6 +1220,10 @@ function startInlineEdit(tr, txn) {
     </td>`;
 
   const catSelect = tr.querySelector('[data-field="category_id"]');
+  wireDescriptionAutocomplete(
+    tr.querySelector('[data-field="description"]'),
+    "txn-description-options"
+  );
   focusFirstInput(tr);
   if (catSelect) wireCategorySelect(catSelect);
 
@@ -2022,7 +2116,7 @@ async function viewTitles() {
           <option value="receivable">A receber</option>
         </select>
       </label>
-      <label>Descrição <input name="description" required maxlength="240"></label>
+      <label>Descrição <input name="description" required maxlength="240" list="title-description-options"></label>
       <label>Favorecido
         <select name="favorecido_id">
           <option value="">(nenhum)</option>
@@ -2047,10 +2141,12 @@ async function viewTitles() {
         <select name="account_id">${selectOptions(cache.accounts)}</select>
       </label>
       <button type="submit">Salvar</button>
-    </form>`;
+    </form>
+    <datalist id="title-description-options"></datalist>`;
 
   const titleForm = document.getElementById("title-form");
   const titleDesc = titleForm.querySelector('[name="description"]');
+  wireDescriptionAutocomplete(titleDesc, "title-description-options");
   if (titleDesc) {
     let t = null;
     titleDesc.addEventListener("input", () => {
