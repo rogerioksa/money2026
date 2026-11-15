@@ -838,6 +838,66 @@
     font-variant-numeric: tabular-nums;
   }
 
+  .card-hint {
+    @apply text-[11px] leading-snug text-slate-500;
+  }
+
+  .suggestions {
+    @apply mb-4 flex flex-col gap-2;
+  }
+
+  .suggestion {
+    @apply border border-stone-300 border-l-4 bg-white px-4 py-3;
+  }
+
+  .suggestion-head {
+    @apply flex flex-wrap items-baseline gap-2;
+  }
+
+  .suggestion-badge {
+    @apply text-[11px] font-semibold uppercase tracking-[0.06em];
+  }
+
+  .suggestion-detail {
+    @apply mt-1 text-sm text-slate-600;
+  }
+
+  .suggestion-action {
+    @apply mt-1.5;
+  }
+
+  .suggestion-danger {
+    @apply border-l-red-600;
+  }
+
+  .suggestion-warning {
+    @apply border-l-amber-500;
+  }
+
+  .suggestion-info {
+    @apply border-l-sky-500;
+  }
+
+  .suggestion-success {
+    @apply border-l-emerald-600;
+  }
+
+  .suggestion-danger .suggestion-badge {
+    @apply text-red-700;
+  }
+
+  .suggestion-warning .suggestion-badge {
+    @apply text-amber-700;
+  }
+
+  .suggestion-info .suggestion-badge {
+    @apply text-sky-700;
+  }
+
+  .suggestion-success .suggestion-badge {
+    @apply text-emerald-700;
+  }
+
   .credit-bar {
     @apply my-2;
   }

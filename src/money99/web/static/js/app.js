@@ -1609,6 +1609,58 @@ function startInlineBudgetEdit(tr, row, year, month) {
 
 // ---------- vista: painel (dashboard) ----------
 
+function dashCard(label, value, tone = "", hint = "") {
+  return `
+    <div class="card">
+      <span class="card-label">${esc(label)}</span>
+      <span class="card-value ${tone}">${value}</span>
+      ${hint ? `<span class="card-hint">${esc(hint)}</span>` : ""}
+    </div>`;
+}
+
+function dashChangeHint(pct) {
+  if (pct === null || pct === undefined) return "sem base de comparação";
+  return `${pct >= 0 ? "+" : ""}${pct}% vs. mês anterior`;
+}
+
+function renderSuggestions(suggestions) {
+  const levels = {
+    danger: { className: "suggestion-danger", label: "Prioridade" },
+    warning: { className: "suggestion-warning", label: "Atenção" },
+    info: { className: "suggestion-info", label: "Dica" },
+  };
+  if (!suggestions || !suggestions.length) {
+    return `
+      <ul class="suggestions">
+        <li class="suggestion suggestion-success">
+          <div class="suggestion-head">
+            <span class="suggestion-badge">Tudo certo</span>
+            <b>Nenhum ponto de atenção neste mês</b>
+          </div>
+          <p class="suggestion-detail">
+            Continue registrando os lançamentos para manter os indicadores confiáveis.
+          </p>
+        </li>
+      </ul>`;
+  }
+  const items = suggestions.map((s) => {
+    const level = levels[s.level] || levels.info;
+    const href = typeof s.href === "string" && s.href.startsWith("#/") ? s.href : "";
+    return `
+      <li class="suggestion ${level.className}">
+        <div class="suggestion-head">
+          <span class="suggestion-badge">${level.label}</span>
+          <b>${esc(s.title)}</b>
+        </div>
+        <p class="suggestion-detail">${esc(s.detail)}</p>
+        ${href && s.action
+          ? `<a class="btn-link suggestion-action" href="${esc(href)}">${esc(s.action)}</a>`
+          : ""}
+      </li>`;
+  }).join("");
+  return `<ul class="suggestions">${items}</ul>`;
+}
+
 async function viewDashboard() {
   const params = new URLSearchParams(location.hash.split("?")[1] || "");
   const now = new Date();
@@ -1618,19 +1670,20 @@ async function viewDashboard() {
   const pad = (n) => String(n).padStart(2, "0");
   const start = `${year}-${pad(month)}-01`;
   const end = `${year}-${pad(month)}-31`;
-  const prev = new Date(year, month - 2, 1);
-  const prevStart = `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-01`;
-  const prevEnd = `${prev.getFullYear()}-${pad(prev.getMonth() + 1)}-31`;
+  const monthLabel = `${monthNames[month - 1]}/${year}`;
 
-  const [data, budgetAlerts, titleAlerts, monthTxns, prevTxns, spending, forecast] = await Promise.all([
-    api("/api/reports/dashboard"),
+  const [data, budgetAlerts, monthTxns, spending, forecast] = await Promise.all([
+    api(`/api/reports/dashboard?year=${year}&month=${month}`),
     api(`/api/budgets/alerts?year=${year}&month=${month}`).catch(() => ({ monthly: [], annual: [] })),
-    api("/api/titles/alerts").catch(() => ({ overdue: [], upcoming: [] })),
     api(`/api/transactions?start=${start}&end=${end}`).catch(() => []),
-    api(`/api/transactions?start=${prevStart}&end=${prevEnd}`).catch(() => []),
     api(`/api/reports/spending?start=${start}&end=${end}`).catch(() => []),
     api("/api/reports/forecast?months=3").catch(() => []),
   ]);
+
+  const flow = data.flow;
+  const titles = data.titles;
+  const future = data.future;
+  const credit = data.credit;
 
   const accountRows = data.accounts.map((a) => `
     <tr>
@@ -1643,9 +1696,7 @@ async function viewDashboard() {
       <td class="num ${a.available < 0 ? "neg" : ""}">${fmtMinor(a.available)}</td>
     </tr>`).join("");
 
-  const creditPct = data.credit.limit_total > 0
-    ? Math.min(100, Math.trunc((data.credit.used_total * 100) / data.credit.limit_total))
-    : 0;
+  const creditPct = credit.used_pct || 0;
 
   const recentTxns = [...monthTxns].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 8);
   const recentRows = recentTxns.map((t) => `
@@ -1665,9 +1716,31 @@ async function viewDashboard() {
   const budgetAlertRows = (budgetAlerts.monthly || []).map((a) => `
     <li>${esc(a.category)} — realizado ${fmtMinor(a.actual)} de ${fmtMinor(a.planned)}</li>`).join("");
 
-  const thisExpense = monthTxns.reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0);
-  const prevExpense = prevTxns.reduce((s, t) => s + (t.amount < 0 ? Math.abs(t.amount) : 0), 0);
-  const expenseChange = prevExpense > 0 ? Math.trunc(((thisExpense - prevExpense) * 100) / prevExpense) : null;
+  const resultHint = (flow.prev_income || flow.prev_expense)
+    ? `vs. ${fmtMinor(flow.prev_result)} no mês anterior`
+    : "sem movimento no mês anterior";
+  const savingsHint = flow.savings_rate == null
+    ? "sem receitas no mês"
+    : `${fmtMinor(flow.result)} ficaram no caixa`;
+  const payableHint = titles.payable_count
+    ? `${titles.payable_count} em aberto${titles.overdue_count ? ` · ${titles.overdue_count} vencido(s)` : ""}`
+    : "nenhum em aberto";
+  const receivableHint = titles.receivable_count
+    ? `${titles.receivable_count} em aberto`
+    : "nenhum em aberto";
+  const futureHint = future.count
+    ? `${future.count} lançamento(s) agendado(s)`
+    : "nenhum agendado";
+  const creditUsedHint = credit.limit_total > 0
+    ? `${creditPct}% de ${fmtMinor(credit.limit_total)}`
+    : "sem limite cadastrado";
+  const increaseRows = (data.category_increases || []).slice(0, 5).map((row) => `
+    <tr>
+      <td>${esc(row.category)}</td>
+      <td class="num">${fmtMinor(row.previous)}</td>
+      <td class="num">${fmtMinor(row.current)}</td>
+      <td class="num neg">+${row.change}%</td>
+    </tr>`).join("");
 
   app.innerHTML = `
     <h2>Painel</h2>
@@ -1681,51 +1754,64 @@ async function viewDashboard() {
       <button type="submit">Ver</button>
     </form>
 
+    <h3>Resumo do mês — ${monthLabel}</h3>
     <div class="cards">
-      <div class="card">
-        <span class="card-label">Saldo em contas</span>
-        <span class="card-value ${data.assets_total < 0 ? "neg" : "pos"}">${fmtMinor(data.assets_total)}</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Patrimônio líquido</span>
-        <span class="card-value ${data.net_worth < 0 ? "neg" : "pos"}">${fmtMinor(data.net_worth)}</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Limite de crédito</span>
-        <span class="card-value">${fmtMinor(data.credit.limit_total)}</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Crédito utilizado</span>
-        <span class="card-value neg">${fmtMinor(data.credit.used_total)}</span>
-      </div>
-      <div class="card">
-        <span class="card-label">Crédito disponível</span>
-        <span class="card-value ${data.credit.available_total < 0 ? "neg" : "pos"}">${fmtMinor(data.credit.available_total)}</span>
-      </div>
+      ${dashCard("Receitas do mês", fmtMinor(flow.income), "pos", dashChangeHint(flow.income_change))}
+      ${dashCard("Despesas do mês", fmtMinor(flow.expense), "neg", dashChangeHint(flow.expense_change))}
+      ${dashCard("Resultado do mês", fmtMinor(flow.result), flow.result < 0 ? "neg" : "pos", resultHint)}
+      ${dashCard("Taxa de poupança", flow.savings_rate == null ? "—" : `${flow.savings_rate}%`, flow.savings_rate != null && flow.savings_rate < 0 ? "neg" : "pos", savingsHint)}
+    </div>
+
+    <h3>Posição atual</h3>
+    <div class="cards">
+      ${dashCard("Saldo em contas", fmtMinor(data.assets_total), data.assets_total < 0 ? "neg" : "pos", "disponível até hoje")}
+      ${dashCard("Patrimônio líquido", fmtMinor(data.net_worth), data.net_worth < 0 ? "neg" : "pos", "saldo em contas menos crédito usado")}
+      ${dashCard("Crédito utilizado", fmtMinor(credit.used_total), "neg", creditUsedHint)}
+      ${dashCard("Crédito disponível", fmtMinor(credit.available_total), credit.available_total < 0 ? "neg" : "pos", "saldo + limite das contas")}
+      ${dashCard("Títulos a pagar", fmtMinor(titles.payable_open), titles.payable_count ? "neg" : "", payableHint)}
+      ${dashCard("Títulos a receber", fmtMinor(titles.receivable_open), titles.receivable_open > 0 ? "pos" : "", receivableHint)}
+      ${dashCard("Lançamentos futuros", fmtMinor(future.net), future.net < 0 ? "neg" : future.net > 0 ? "pos" : "", futureHint)}
     </div>
 
     <h3>Uso do limite de crédito</h3>
-    <div class="bar credit-bar"><div class="bar-fill ${creditPct >= 90 ? "over" : ""}" style="width:${creditPct}%"></div></div>
-    <p class="placeholder">${creditPct}% do limite total utilizado.</p>
+    ${credit.limit_total > 0
+      ? `<div class="bar credit-bar"><div class="bar-fill ${creditPct >= 90 ? "over" : ""}" style="width:${Math.min(100, creditPct)}%"></div></div>
+    <p class="placeholder">${creditPct}% do limite total utilizado (${fmtMinor(credit.used_total)} de ${fmtMinor(credit.limit_total)}).</p>`
+      : '<p class="placeholder">Nenhuma conta com limite de crédito cadastrado.</p>'}
+
+    <h3>Sugestões</h3>
+    ${renderSuggestions(data.suggestions)}
 
     <div class="report-grid">
       <section>
-        <h3>Alertas de orçamento (${monthNames[month - 1]}/${year})</h3>
+        <h3>Alertas de orçamento (${monthLabel})</h3>
         ${budgetAlertRows ? `<ul>${budgetAlertRows}</ul>` : '<p class="placeholder">Sem estouros no mês.</p>'}
       </section>
       <section>
         <h3>Títulos vencidos/vencendo</h3>
-        <p class="${titleAlerts.overdue.length ? "neg" : "placeholder"}">Vencidos: ${titleAlerts.overdue.length}</p>
-        <p class="placeholder">Vencendo em 7 dias: ${titleAlerts.upcoming.length}</p>
+        <p class="${titles.overdue_count ? "neg" : "placeholder"}">
+          Vencidos: ${titles.overdue_count} — ${fmtMinor(titles.overdue_amount)}
+        </p>
+        <p class="placeholder">
+          Vencendo em 7 dias: ${titles.upcoming_count} — ${fmtMinor(titles.upcoming_amount)}
+        </p>
       </section>
     </div>
 
-    <h3>Insights</h3>
-    <p class="placeholder">
-      Gasto do mês: ${fmtMinor(thisExpense)}
-      ${expenseChange !== null ? `(${expenseChange >= 0 ? "+" : ""}${expenseChange}% vs. mês anterior)` : ""}
-    </p>
-    ${creditPct >= 90 ? '<p class="error">Atenção: uso do limite de crédito acima de 90%.</p>' : ""}
+    <h3>Gastos em alta vs. mês anterior</h3>
+    <div class="table-wrap">
+      <table class="grid">
+        <thead>
+          <tr>
+            <th>Categoria</th>
+            <th class="num">Mês anterior</th>
+            <th class="num">Este mês</th>
+            <th class="num">Variação</th>
+          </tr>
+        </thead>
+        <tbody>${increaseRows || '<tr><td colspan="4" class="placeholder">Sem aumentos relevantes de gastos.</td></tr>'}</tbody>
+      </table>
+    </div>
 
     <h3>Top despesas do mês</h3>
     <div class="table-wrap">

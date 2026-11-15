@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from flask import Blueprint, jsonify, request
 
 from money99.api._common import error, get_repo
+from money99.services.insights import dashboard_insights
 from money99.services.reports import (
     cash_flow,
     cash_flow_forecast,
@@ -22,7 +25,20 @@ bp = Blueprint("reports", __name__, url_prefix="/api/reports")
 
 @bp.get("/dashboard")
 def dashboard_report():
-    return jsonify(dashboard(get_repo()))
+    repo = get_repo()
+    today = date.today()
+    year = request.args.get("year", default=today.year, type=int)
+    month = request.args.get("month", default=today.month, type=int)
+    if year is None or not (2000 <= year <= 2200):
+        year = today.year
+    if month is None or not (1 <= month <= 12):
+        month = today.month
+
+    data = dashboard(repo)
+    insights = dashboard_insights(repo, year, month, data)
+    data["credit"].update(insights.pop("credit"))
+    data.update(insights)
+    return jsonify(data)
 
 
 @bp.get("/spending")

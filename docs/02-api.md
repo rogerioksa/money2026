@@ -126,7 +126,7 @@ ações em massa para os lançamentos visíveis no Extrato.
 | GET | `/api/reports/spending?start&end[&kind]` | Total por categoria. |
 | GET | `/api/reports/net-worth[?as_of]` | Patrimônio líquido. |
 | GET | `/api/reports/cash-flow?start&end` | Entradas/saídas por mês. |
-| GET | `/api/reports/dashboard` | Saldos de todas as contas + resumo de crédito. |
+| GET | `/api/reports/dashboard[?year&month]` | Saldos, resumo de crédito, fluxo do mês e sugestões. |
 | GET | `/api/reports/forecast?months` | Projeção de fluxo de caixa. |
 | GET | `/api/reports/income-statement?start&end` | DRE simplificado. |
 | GET | `/api/reports/by-cost-center?start&end` | Totais por centro de custo. |
@@ -135,8 +135,21 @@ ações em massa para os lançamentos visíveis no Extrato.
 
 `dashboard` retorna `accounts` (cada uma com `balance` até hoje, `future`,
 `credit_limit` e `available`), `assets_total`, `net_worth` e `credit`
-(`limit_total`, `used_total`, `available_total`, `accounts`). Transações futuras
-não entram nos saldos nem no patrimônio; aparecem em `future`.
+(`limit_total`, `used_total`, `available_total`, `used_pct`, `accounts`).
+Transações futuras não entram nos saldos nem no patrimônio; aparecem em `future`.
+
+Com `year`/`month` (padrão: mês atual), inclui ainda:
+
+- `flow`: receitas, despesas, resultado, taxa de poupança (`savings_rate`, `null`
+  sem receitas), totais do mês anterior e variações percentuais; transferências
+  ficam fora do fluxo. Também traz contagens de lançamentos sem categoria e não
+  conciliados.
+- `titles`: títulos a pagar/receber em aberto (inclui parciais pelo saldo
+  restante), vencidos e vencendo em 7 dias, com valores e contagens.
+- `future`: efeito líquido e quantidade de lançamentos futuros.
+- `category_increases`: categorias com alta relevante vs. mês anterior.
+- `suggestions`: lista priorizada (`level` danger/warning/info, `title`,
+  `detail`, `href`, `action`) para ações no painel.
 
 `GET /reports/print?year=` renderiza o relatório consolidado em HTML pronto
 para impressão (título, gastos por categoria, patrimônio, fluxo de caixa).
