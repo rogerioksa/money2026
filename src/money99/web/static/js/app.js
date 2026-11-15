@@ -821,6 +821,7 @@ async function viewTransactions() {
   });
 
   // Autosave de rascunho do lançamento
+  const form = document.getElementById("txn-form");
   const DRAFT_KEY = "money99:txn-draft";
   const saveDraft = () => {
     try {
