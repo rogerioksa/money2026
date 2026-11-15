@@ -239,18 +239,33 @@ function closeReport() {
   overlay.querySelector("iframe").src = "about:blank";
 }
 
-function toast(message, isError = false) {
+function toast(message, isError = false, action = null) {
   let el = document.getElementById("toast");
   if (!el) {
     el = document.createElement("div");
     el.id = "toast";
     document.body.appendChild(el);
   }
-  el.textContent = message;
+  el.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = message;
+  el.appendChild(span);
+  if (action && action.label && typeof action.onClick === "function") {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = action.label;
+    btn.addEventListener("click", () => {
+      clearTimeout(el._timer);
+      el.style.display = "none";
+      action.onClick();
+    });
+    el.appendChild(btn);
+  }
   el.className = isError ? "toast toast-error" : "toast";
   el.style.display = "block";
   clearTimeout(el._timer);
-  el._timer = setTimeout(() => { el.style.display = "none"; }, 3000);
+  el._timer = setTimeout(() => { el.style.display = "none"; }, action ? 5000 : 3000);
 }
 
 function focusFirstInput(root = document) {
@@ -795,6 +810,7 @@ async function viewTransactions() {
       });
       await refreshCache();
       navigate();
+      try { localStorage.removeItem("money99:txn-draft"); } catch (e) {}
       toast("Lançado!");
     } catch (err) {
       toast(err.message, true);
@@ -803,6 +819,38 @@ async function viewTransactions() {
       focusFirstInput(document.getElementById("txn-form"));
     }
   });
+
+  // Autosave de rascunho do lançamento
+  const DRAFT_KEY = "money99:txn-draft";
+  const saveDraft = () => {
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+        date: form.date.value,
+        description: form.description.value,
+        account_id: form.account_id.value,
+        category_id: form.category_id.value,
+        cost_center_id: form.cost_center_id.value,
+        amount: form.amount.value,
+        doc_issued: business && form.doc_issued ? form.doc_issued.checked : false,
+      }));
+    } catch (e) {}
+  };
+  form.addEventListener("input", saveDraft);
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      if (d.date) form.date.value = d.date;
+      if (d.description) form.description.value = d.description;
+      if (d.account_id) form.account_id.value = d.account_id;
+      if (d.category_id !== undefined && d.category_id !== null && d.category_id !== "")
+        form.category_id.value = d.category_id;
+      if (d.cost_center_id !== undefined && d.cost_center_id !== null && d.cost_center_id !== "")
+        form.cost_center_id.value = d.cost_center_id;
+      if (d.amount) form.amount.value = d.amount;
+      if (business && form.doc_issued && d.doc_issued) form.doc_issued.checked = !!d.doc_issued;
+    }
+  } catch (e) {}
 
   const updateBulkState = () => {
     const count = selectedTxnIds.size;
@@ -970,13 +1018,37 @@ function startInlineTxnDelete(tr, id) {
       navigate().then(() => window.scrollTo(0, scrollY));
       return;
     }
+    const txn = (txns || []).find((t) => t.id === id);
     const scrollY = window.scrollY;
     try {
       await api(`/api/transactions/${id}`, { method: "DELETE" });
       await refreshCache();
       await navigate();
       window.scrollTo(0, scrollY);
-      toast("Transação excluída");
+      const undo = txn
+        ? () => {
+            api("/api/transactions", {
+              method: "POST",
+              body: JSON.stringify({
+                date: txn.date,
+                description: txn.description,
+                account_id: txn.account_id,
+                category_id: txn.category_id,
+                cost_center_id: txn.cost_center_id,
+                amount: txn.amount,
+                reconciled: false,
+                doc_issued: txn.doc_issued,
+                transfer_account_id: txn.transfer_account_id,
+                splits: txn.splits,
+              }),
+            })
+              .then(() => refreshCache())
+              .then(() => navigate())
+              .then(() => toast("Transação restaurada"))
+              .catch((err) => toast(err.message, true));
+          }
+        : null;
+      toast("Transação excluída", false, undo ? { label: "Desfazer", onClick: undo } : null);
     } catch (err) {
       toast(err.message, true);
       const s = window.scrollY;
