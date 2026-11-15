@@ -648,12 +648,12 @@ async function viewTransactions() {
           <b>${fmtMinor(futureTotal)}</b> (${futureTxns.length})</span>` : ""}
       </div>
       <form id="txn-form" class="form-row form-flex txn-form-new">
-        <label>Data <input type="date" name="date" value="${todayISO()}" required></label>
-        <label>Descrição <input name="description" maxlength="240"></label>
-        <label>Conta <select name="account_id" required>${selectOptions(cache.accounts, accountId)}</select></label>
-        <label>Categoria <select name="category_id">${categorySelectHtml(null)}</select></label>
-        <label>Centro de custo <select name="cost_center_id">${selectOptions(cache.costCenters || [])}</select></label>
-        <label>Valor (saída com "-") <input name="amount" placeholder="-50,00" class="num" required></label>
+        <label title="Data do lançamento">Data <input type="date" name="date" value="${todayISO()}" required></label>
+        <label title="Descrição livre (opcional)">Descrição <input name="description" maxlength="240"></label>
+        <label title="Conta de origem/destino">Conta <select name="account_id" required>${selectOptions(cache.accounts, accountId)}</select></label>
+        <label title="Categoria da despesa/receita (vazio = pendente de categorização)">Categoria <select name="category_id">${categorySelectHtml(null)}</select></label>
+        <label title="Centro de custo para relatórios">Centro de custo <select name="cost_center_id">${selectOptions(cache.costCenters || [])}</select></label>
+        <label title="Negativo para saída, positivo para entrada">Valor (saída com "-") <input name="amount" placeholder="-50,00" class="num" required></label>
         ${business ? '<label class="check" title="Documento fiscal emitido (venda para PJ)"><input type="checkbox" name="doc_issued"> NF emitida</label>' : ""}
         <button type="submit">Lançar</button>
       </form>
@@ -1886,7 +1886,7 @@ async function viewTitles() {
     </tr>`).join("");
 
   app.innerHTML = `
-    <h2>Contas a pagar / receber (CAR/CAP)</h2>
+    <h2>Contas a pagar e a receber</h2>
     ${alerts.overdue.length ? `<p class="error">Títulos vencidos: ${alerts.overdue.length}</p>` : ""}
     ${alerts.upcoming.length ? `<p class="placeholder">Vencendo em 7 dias: ${alerts.upcoming.length}</p>` : ""}
     <div class="table-wrap">
