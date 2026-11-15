@@ -66,3 +66,31 @@ def test_reconciliation_summary_service(tmp_path):
     assert summary["balance"] == 8000
     assert summary["pending_count"] == 1
     assert summary["pending_total"] == -2000
+
+
+def test_suggest_matches_groups_same_amount(client):
+    account = client.post("/api/accounts", json={
+        "name": "Banco", "type": "bank",
+    }).get_json()
+    food = next(c for c in client.get("/api/categories?kind=expense").get_json()
+                if c["name"] == "Alimentação")
+    # duas saídas idênticas em datas próximas (ex.: duplicata importada)
+    client.post("/api/transactions", json={
+        "date": "2026-05-01", "account_id": account["id"], "amount": -5000,
+        "category_id": food["id"], "description": "Mercado",
+    })
+    client.post("/api/transactions", json={
+        "date": "2026-05-02", "account_id": account["id"], "amount": -5000,
+        "category_id": food["id"], "description": "Mercado dup",
+    })
+    res = client.get(f"/api/reconcile/suggestions?account_id={account['id']}")
+    assert res.status_code == 200
+    groups = res.get_json()
+    assert len(groups) == 1
+    assert groups[0]["amount"] == 5000
+    assert len(groups[0]["transactions"]) == 2
+
+
+def test_suggest_matches_requires_account(client):
+    res = client.get("/api/reconcile/suggestions")
+    assert res.status_code == 400

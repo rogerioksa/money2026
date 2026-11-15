@@ -70,8 +70,11 @@ def _parse_qif_amount(text: str) -> int:
     text = text.strip().replace("$", "").replace(",", "")
     if not text:
         raise StatementParseError("valor QIF vazio")
-    value = float(text)
-    return int(round(value * 100))
+    try:
+        value = Decimal(text)
+    except InvalidOperation as exc:
+        raise StatementParseError(f"valor QIF inválido: {text!r}") from exc
+    return int((value * 100).to_integral_value())
 
 
 def parse_qif(content: str) -> list[ImportedTransaction]:
@@ -138,7 +141,11 @@ def _ofx_amount(text: str) -> int:
     text = text.strip().replace(",", "")
     if not text:
         raise StatementParseError("valor OFX vazio")
-    return int(round(float(text) * 100))
+    try:
+        value = Decimal(text)
+    except InvalidOperation as exc:
+        raise StatementParseError(f"valor OFX inválido: {text!r}") from exc
+    return int((value * 100).to_integral_value())
 
 
 def parse_ofx(content: str) -> list[ImportedTransaction]:

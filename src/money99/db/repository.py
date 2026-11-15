@@ -32,7 +32,16 @@ from money99.domain.profile import Profile, ProfileKind
 from money99.domain.title import Title
 from money99.domain.transaction import Split, Transaction
 
-_SCOPED_TABLES = (AccountRow, CategoryRow, TransactionRow, BudgetRow)
+_SCOPED_TABLES = (
+    AccountRow,
+    CategoryRow,
+    TransactionRow,
+    BudgetRow,
+    CostCenterRow,
+    FavorecidoRow,
+    TitleRow,
+    AnnualBudgetRow,
+)
 
 
 def _activity_value(activity) -> str:
@@ -105,19 +114,17 @@ class Repository:
             raise LookupError(f"perfil {profile_id} não encontrado")
         if self.session.scalar(select(func.count()).select_from(ProfileRow)) <= 1:
             raise ValueError("não é possível excluir o único perfil")
-        used = self.session.scalar(
-            select(func.count()).select_from(AccountRow).where(
-                AccountRow.profile_id == profile_id
-            )
-        ) or 0
-        used += self.session.scalar(
-            select(func.count()).select_from(TransactionRow).where(
-                TransactionRow.profile_id == profile_id
-            )
-        ) or 0
-        if used:
-            raise ValueError("perfil possui dados; desative em vez de excluir")
-        for model in (BudgetRow, CategoryRow):
+        for model in (AccountRow, TransactionRow, TitleRow, FavorecidoRow,
+                      CostCenterRow, BudgetRow, CategoryRow, AnnualBudgetRow):
+            used = self.session.scalar(
+                select(func.count()).select_from(model).where(
+                    model.profile_id == profile_id
+                )
+            ) or 0
+            if used and model in (AccountRow, TransactionRow, TitleRow):
+                raise ValueError("perfil possui dados; desative em vez de excluir")
+        for model in (BudgetRow, CategoryRow, CostCenterRow, FavorecidoRow,
+                      TitleRow, AnnualBudgetRow, TransactionRow, AccountRow):
             self.session.query(model).filter(model.profile_id == profile_id).delete()
         self.session.delete(row)
 
@@ -132,7 +139,7 @@ class Repository:
 
     def get_account(self, account_id: int) -> Account:
         row = self.session.get(AccountRow, account_id)
-        if row is None:
+        if row is None or (self.profile_id is not None and row.profile_id != self.profile_id):
             raise LookupError(f"conta {account_id} não encontrada")
         return self._to_account(row)
 
@@ -195,7 +202,10 @@ class Repository:
             future = func.coalesce(func.sum(
                 case((TransactionRow.date > cutoff, TransactionRow.amount), else_=0)
             ), 0)
-            row = self.session.execute(select(current, future).where(column)).one()
+            stmt = select(current, future).where(column)
+            if self.profile_id is not None:
+                stmt = stmt.where(TransactionRow.profile_id == self.profile_id)
+            row = self.session.execute(stmt).one()
             return int(row[0] or 0), int(row[1] or 0)
 
         outgoing_current, outgoing_future = totals(TransactionRow.account_id == account_id)
@@ -224,7 +234,7 @@ class Repository:
 
     def get_category(self, category_id: int) -> CategoryRow:
         row = self.session.get(CategoryRow, category_id)
-        if row is None:
+        if row is None or (self.profile_id is not None and row.profile_id != self.profile_id):
             raise LookupError(f"categoria {category_id} não encontrada")
         return row
 
@@ -322,7 +332,7 @@ class Repository:
 
     def get_transaction(self, txn_id: int) -> Transaction:
         row = self.session.get(TransactionRow, txn_id)
-        if row is None:
+        if row is None or (self.profile_id is not None and row.profile_id != self.profile_id):
             raise LookupError(f"transação {txn_id} não encontrada")
         return self._to_transaction(row)
 
@@ -448,7 +458,7 @@ class Repository:
 
     def get_title(self, title_id: int) -> Title:
         row = self.session.get(TitleRow, title_id)
-        if row is None:
+        if row is None or (self.profile_id is not None and row.profile_id != self.profile_id):
             raise LookupError(f"título {title_id} não encontrado")
         return self._to_title(row)
 
@@ -525,7 +535,7 @@ class Repository:
 
     def get_favorecido(self, favorecido_id: int) -> Favorecido:
         row = self.session.get(FavorecidoRow, favorecido_id)
-        if row is None:
+        if row is None or (self.profile_id is not None and row.profile_id != self.profile_id):
             raise LookupError(f"favorecido {favorecido_id} não encontrado")
         return self._to_favorecido(row)
 
@@ -587,7 +597,7 @@ class Repository:
 
     def get_cost_center(self, cost_center_id: int) -> CostCenter:
         row = self.session.get(CostCenterRow, cost_center_id)
-        if row is None:
+        if row is None or (self.profile_id is not None and row.profile_id != self.profile_id):
             raise LookupError(f"centro de custo {cost_center_id} não encontrado")
         return self._to_cost_center(row)
 

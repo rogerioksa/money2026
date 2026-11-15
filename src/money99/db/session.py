@@ -196,11 +196,35 @@ def _migrate(engine: Engine) -> None:
             conn.execute(text(
                 "UPDATE accounts SET credit_limit = 0 WHERE credit_limit IS NULL"
             ))
+            conn.execute(text(
+                "UPDATE accounts SET initial_balance = 0 WHERE initial_balance IS NULL"
+            ))
         if inspector.has_table("profiles"):
             conn.execute(text(
                 "UPDATE profiles SET activity = 'servicos' WHERE activity IS NULL"
             ))
+            conn.execute(text(
+                "UPDATE profiles SET annual_limit = 8100000 WHERE annual_limit IS NULL"
+            ))
         if inspector.has_table("transactions"):
             conn.execute(text(
                 "UPDATE transactions SET doc_issued = 0 WHERE doc_issued IS NULL"
+            ))
+            conn.execute(text(
+                "UPDATE transactions SET amount = 0 WHERE amount IS NULL"
+            ))
+        if inspector.has_table("budgets"):
+            conn.execute(text(
+                "UPDATE budgets SET planned = 0 WHERE planned IS NULL"
+            ))
+        if inspector.has_table("titles"):
+            conn.execute(text(
+                "UPDATE titles SET amount = 0 WHERE amount IS NULL"
+            ))
+            conn.execute(text(
+                "UPDATE titles SET paid_amount = 0 WHERE paid_amount IS NULL"
+            ))
+        if inspector.has_table("annual_budgets"):
+            conn.execute(text(
+                "UPDATE annual_budgets SET annual_planned = 0 WHERE annual_planned IS NULL"
             ))
