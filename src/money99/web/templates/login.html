@@ -14,7 +14,7 @@
     <h1>Money 2026</h1>
     <p id="login-hint" class="placeholder">Carregando…</p>
     <form id="login-form" class="login-form" hidden>
-      <label>Usuário <input name="username" autocomplete="username" required maxlength="120"></label>
+      <label>Usuário <input name="username" autocomplete="username" required maxlength="120" spellcheck="false" lang="pt-BR"></label>
       <label>Senha <input name="password" type="password" autocomplete="current-password" required></label>
       <button type="submit" id="login-submit">Entrar</button>
     </form>
@@ -43,6 +43,17 @@
         const status = await api("/api/auth/status");
         if (status.authenticated) { window.location.href = "/"; return; }
         form.hidden = false;
+        form.username.addEventListener("input", () => {
+          const start = form.username.selectionStart;
+          const end = form.username.selectionEnd;
+          const upper = form.username.value.toUpperCase();
+          if (upper !== form.username.value) {
+            form.username.value = upper;
+            if (typeof start === "number" && typeof end === "number") {
+              try { form.username.setSelectionRange(start, end); } catch (e) {}
+            }
+          }
+        });
         if (status.has_user) {
           hint.textContent = "Entre com seu usuário e senha.";
         } else {
@@ -65,7 +76,7 @@
         await api(endpoint, {
           method: "POST",
           body: JSON.stringify({
-            username: form.username.value,
+            username: form.username.value.toUpperCase(),
             password: form.password.value,
           }),
         });

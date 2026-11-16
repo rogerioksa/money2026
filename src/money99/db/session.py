@@ -28,7 +28,7 @@ DEFAULT_CATEGORIES = [
 
 # Versão lógica do schema. Incrementar quando houver migração que exija backup
 # mesmo sem colunas novas (ex.: backfill de dados).
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 BACKUP_PREFIX = "money99-"
 
 _EXPECTED_COLUMNS: dict[str, list[tuple[str, str]]] = {
@@ -144,6 +144,8 @@ def init_db(engine: Engine, *, seed: bool = True) -> None:
     if seed:
         _seed_profiles(engine)
         _seed_categories(engine)
+    with engine.begin() as conn:
+        _uppercase_text_columns(conn, inspect(conn))
     _set_schema_version(engine)
 
 
@@ -248,7 +250,7 @@ def _seed_profiles(engine: Engine) -> None:
                 text(
                     "INSERT INTO profiles (name, kind, cnpj, legal_name, trade_name,"
                     " opened_on, annual_limit, activity, active)"
-                    " VALUES ('Pessoal', 'personal', '', '', '', '', 0, 'servicos', 1)"
+                    " VALUES ('PESSOAL', 'personal', '', '', '', '', 0, 'servicos', 1)"
                 )
             )
         default_id = conn.execute(text("SELECT MIN(id) FROM profiles")).scalar()
@@ -279,6 +281,58 @@ def _seed_categories(engine: Engine) -> None:
                         " VALUES (:p, :n, :k, NULL)"
                     ),
                     {"p": profile_id, "n": name, "k": kind},
+                )
+
+
+# Campos textuais de conteúdo do usuário (exclui códigos/enums/datas usados pela lógica).
+_UPPERCASE_COLUMNS: dict[str, tuple[str, ...]] = {
+    "profiles": ("name", "cnpj", "legal_name", "trade_name"),
+    "accounts": ("name",),
+    "categories": ("name",),
+    "transactions": ("description", "notes"),
+    "titles": ("description", "favorecido", "notes"),
+    "favorecidos": ("name", "document", "phone", "email", "notes"),
+    "cost_centers": ("name",),
+    "users": ("username",),
+}
+
+
+def _upper_text(value):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        value = str(value)
+    return value.upper()
+
+
+def _uppercase_text_columns(conn, inspector) -> None:
+    """Normaliza campos de texto para maiúsculas (idempotente, Unicode)."""
+    for table, columns in _UPPERCASE_COLUMNS.items():
+        if not inspector.has_table(table):
+            continue
+        existing = {col["name"] for col in inspector.get_columns(table)}
+        cols = [c for c in columns if c in existing]
+        if not cols:
+            continue
+        rows = conn.execute(
+            text(f"SELECT rowid AS _rowid, {', '.join(cols)} FROM {table}")
+        ).fetchall()
+        for row in rows:
+            mapping = row._mapping
+            updates = {}
+            for col in cols:
+                current = mapping[col]
+                if current is None:
+                    continue
+                upper = _upper_text(current)
+                if upper != current:
+                    updates[col] = upper
+            if updates:
+                set_clause = ", ".join(f"{col} = :{col}" for col in updates)
+                updates["_rowid"] = mapping["_rowid"]
+                conn.execute(
+                    text(f"UPDATE {table} SET {set_clause} WHERE rowid = :_rowid"),
+                    updates,
                 )
 
 
@@ -336,3 +390,5 @@ def _migrate(engine: Engine) -> None:
             conn.execute(text(
                 "UPDATE annual_budgets SET annual_planned = 0 WHERE annual_planned IS NULL"
             ))
+        inspector = inspect(conn)
+        _uppercase_text_columns(conn, inspector)

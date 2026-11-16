@@ -18,33 +18,33 @@ def setup_db(tmp_path):
 def test_actual_by_category_sums_expenses(tmp_path):
     session = setup_db(tmp_path)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank"))
+    account = repo.add_account(Account(name="BANCO", type="bank"))
     cats = {c.name: c for c in repo.list_categories(kind="expense")}
 
     repo.add_transaction(Transaction(
         date="2026-10-05", account_id=account.id, amount=-3000,
-        category_id=cats["Alimentação"].id,
+        category_id=cats["ALIMENTAÇÃO"].id,
     ))
     repo.add_transaction(Transaction(
         date="2026-10-15", account_id=account.id, amount=-2000,
-        category_id=cats["Alimentação"].id,
+        category_id=cats["ALIMENTAÇÃO"].id,
     ))
     repo.add_transaction(Transaction(
         date="2026-11-01", account_id=account.id, amount=-5000,
-        category_id=cats["Transporte"].id,
+        category_id=cats["TRANSPORTE"].id,
     ))
     session.commit()
 
     totals = actual_by_category(repo, 2026, 10)
-    assert totals[cats["Alimentação"].id] == 5000
-    assert cats["Transporte"].id not in totals
+    assert totals[cats["ALIMENTAÇÃO"].id] == 5000
+    assert cats["TRANSPORTE"].id not in totals
 
 
 def test_budget_report(tmp_path):
     session = setup_db(tmp_path)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank"))
-    food = {c.name: c for c in repo.list_categories(kind="expense")}["Alimentação"]
+    account = repo.add_account(Account(name="BANCO", type="bank"))
+    food = {c.name: c for c in repo.list_categories(kind="expense")}["ALIMENTAÇÃO"]
 
     repo.set_annual_budget(2026, food.id, 96000)
     repo.add_transaction(Transaction(
@@ -73,8 +73,8 @@ def test_budget_report_excludes_transfers(tmp_path):
 
 def test_budget_api_roundtrip(client):
     cats = client.get("/api/categories?kind=expense").get_json()
-    food = next(c for c in cats if c["name"] == "Alimentação")
-    account = client.post("/api/accounts", json={"name": "Banco", "type": "bank"}).get_json()
+    food = next(c for c in cats if c["name"] == "ALIMENTAÇÃO")
+    account = client.post("/api/accounts", json={"name": "BANCO", "type": "bank"}).get_json()
 
     res = client.put("/api/budgets", json={
         "year": 2026, "category_id": food["id"], "annual_planned": 96000,
@@ -90,7 +90,7 @@ def test_budget_api_roundtrip(client):
     assert res.status_code == 200
     row = next(r for r in res.get_json() if r["category_id"] == food["id"])
     assert row["category_id"] == food["id"]
-    assert row["category"] == "Alimentação"
+    assert row["category"] == "ALIMENTAÇÃO"
     assert row["planned"] == 8000
     assert row["actual"] == 5000
     assert row["remaining"] == 3000

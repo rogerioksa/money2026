@@ -34,7 +34,7 @@ def test_update_favorecido(client):
     )
     assert res.status_code == 200
     body = res.get_json()
-    assert body["name"] == "ACME Ltda"
+    assert body["name"] == "ACME LTDA"
     assert body["active"] is False
 
 

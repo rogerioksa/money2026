@@ -19,7 +19,7 @@ def test_default_personal_profile_created(app):
         profiles = c.get("/api/profiles").get_json()
         assert len(profiles) == 1
         assert profiles[0]["kind"] == "personal"
-        assert profiles[0]["name"] == "Pessoal"
+        assert profiles[0]["name"] == "PESSOAL"
         assert profiles[0]["annual_limit"] == 0
 
 
@@ -62,7 +62,7 @@ def test_data_isolation_between_profiles(client):
     personal = _personal_id(client)
     business = client.post("/api/profiles", json={"name": "MEI", "kind": "business"}).get_json()
 
-    client.post("/api/accounts", json={"name": "Pessoal", "type": "bank"})
+    client.post("/api/accounts", json={"name": "PESSOAL", "type": "bank"})
 
     client.put("/api/auth/profile", json={"profile_id": business["id"]})
     client.post("/api/accounts", json={"name": "MEI", "type": "bank"})
@@ -70,7 +70,7 @@ def test_data_isolation_between_profiles(client):
     assert [a["name"] for a in client.get("/api/accounts").get_json()] == ["MEI"]
 
     client.put("/api/auth/profile", json={"profile_id": personal})
-    assert [a["name"] for a in client.get("/api/accounts").get_json()] == ["Pessoal"]
+    assert [a["name"] for a in client.get("/api/accounts").get_json()] == ["PESSOAL"]
 
 
 def test_cannot_delete_profile_with_data(client):
@@ -99,11 +99,11 @@ def test_update_business_profile(client):
     created = client.post("/api/profiles", json={"name": "MEI", "kind": "business"}).get_json()
     res = client.put(f"/api/profiles/{created['id']}", json={
         "name": "MEI Renomeado", "kind": "business", "cnpj": "00.000.000/0001-00",
-        "legal_name": "Fulano ME", "annual_limit": 8100000,
+        "legal_name": "FULANO ME", "annual_limit": 8100000,
     })
     assert res.status_code == 200
     body = res.get_json()
-    assert body["name"] == "MEI Renomeado"
+    assert body["name"] == "MEI RENOMEADO"
     assert body["cnpj"] == "00.000.000/0001-00"
 
 
@@ -137,5 +137,5 @@ def test_repository_scopes_by_profile(tmp_path):
     r1.add_account(Account(name="Conta A", type="bank"))
     r2.add_account(Account(name="Conta B", type="bank"))
 
-    assert [a.name for a in r1.list_accounts()] == ["Conta A"]
-    assert [a.name for a in r2.list_accounts()] == ["Conta B"]
+    assert [a.name for a in r1.list_accounts()] == ["CONTA A"]
+    assert [a.name for a in r2.list_accounts()] == ["CONTA B"]

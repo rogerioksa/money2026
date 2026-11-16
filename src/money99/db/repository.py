@@ -65,6 +65,15 @@ def _most_common(values):
     return max(counts, key=lambda key: counts[key])
 
 
+def _norm_text(value, *, default: str = "") -> str:
+    """Normaliza texto de conteúdo do usuário para maiúsculas."""
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        value = str(value)
+    return value.strip().upper()
+
+
 class Repository:
     def __init__(self, session: Session, profile_id: int | None = None):
         self.session = session
@@ -91,11 +100,11 @@ class Repository:
 
     def add_profile(self, profile: Profile) -> Profile:
         row = ProfileRow(
-            name=profile.name,
+            name=_norm_text(profile.name),
             kind=profile.kind.value,
-            cnpj=profile.cnpj,
-            legal_name=profile.legal_name,
-            trade_name=profile.trade_name,
+            cnpj=_norm_text(profile.cnpj),
+            legal_name=_norm_text(profile.legal_name),
+            trade_name=_norm_text(profile.trade_name),
             opened_on=profile.opened_on,
             annual_limit=profile.annual_limit,
             activity=_activity_value(profile.activity),
@@ -111,11 +120,11 @@ class Repository:
         row = self.session.get(ProfileRow, profile.id)
         if row is None:
             raise LookupError(f"perfil {profile.id} não encontrado")
-        row.name = profile.name
+        row.name = _norm_text(profile.name)
         row.kind = profile.kind.value
-        row.cnpj = profile.cnpj
-        row.legal_name = profile.legal_name
-        row.trade_name = profile.trade_name
+        row.cnpj = _norm_text(profile.cnpj)
+        row.legal_name = _norm_text(profile.legal_name)
+        row.trade_name = _norm_text(profile.trade_name)
         row.opened_on = profile.opened_on
         row.annual_limit = profile.annual_limit
         row.activity = _activity_value(profile.activity)
@@ -160,7 +169,7 @@ class Repository:
     def add_account(self, account: Account) -> Account:
         row = AccountRow(
             profile_id=self.profile_id,
-            name=account.name,
+            name=_norm_text(account.name),
             type=account.type.value,
             initial_balance=account.initial_balance,
             active=account.active,
@@ -176,7 +185,7 @@ class Repository:
         row = self.session.get(AccountRow, account.id)
         if row is None:
             raise LookupError(f"conta {account.id} não encontrada")
-        row.name = account.name
+        row.name = _norm_text(account.name)
         row.type = account.type.value
         row.initial_balance = account.initial_balance
         row.active = account.active
@@ -256,7 +265,7 @@ class Repository:
         if kind not in ("income", "expense"):
             raise ValueError(f"kind inválido: {kind!r}")
         row = CategoryRow(
-            profile_id=self.profile_id, name=name, kind=kind, parent_id=parent_id
+            profile_id=self.profile_id, name=_norm_text(name), kind=kind, parent_id=parent_id
         )
         self.session.add(row)
         self.session.flush()
@@ -287,12 +296,12 @@ class Repository:
         row = TransactionRow(
             profile_id=self.profile_id,
             date=txn.date,
-            description=txn.description,
+            description=_norm_text(txn.description),
             account_id=txn.account_id,
             amount=txn.amount,
             category_id=txn.category_id,
             transfer_account_id=txn.transfer_account_id,
-            notes=txn.notes,
+            notes=_norm_text(txn.notes),
             reconciled=txn.reconciled,
             doc_issued=txn.doc_issued,
             cost_center_id=txn.cost_center_id,
@@ -318,12 +327,12 @@ class Repository:
         if row is None:
             raise LookupError(f"transação {txn.id} não encontrada")
         row.date = txn.date
-        row.description = txn.description
+        row.description = _norm_text(txn.description)
         row.account_id = txn.account_id
         row.amount = txn.amount
         row.category_id = txn.category_id
         row.transfer_account_id = txn.transfer_account_id
-        row.notes = txn.notes
+        row.notes = _norm_text(txn.notes)
         row.reconciled = txn.reconciled
         row.doc_issued = txn.doc_issued
         row.cost_center_id = txn.cost_center_id
@@ -593,16 +602,16 @@ class Repository:
         row = TitleRow(
             profile_id=self.profile_id,
             type=title.type,
-            description=title.description,
+            description=_norm_text(title.description),
             amount=title.amount,
             due_date=title.due_date,
             status=title.status,
             account_id=title.account_id,
             category_id=title.category_id,
             cost_center_id=title.cost_center_id,
-            favorecido=title.favorecido,
+            favorecido=_norm_text(title.favorecido),
             favorecido_id=title.favorecido_id,
-            notes=title.notes,
+            notes=_norm_text(title.notes),
             paid_date=title.paid_date,
             paid_amount=title.paid_amount,
         )
@@ -617,16 +626,16 @@ class Repository:
         if row is None:
             raise LookupError(f"título {title.id} não encontrado")
         row.type = title.type
-        row.description = title.description
+        row.description = _norm_text(title.description)
         row.amount = title.amount
         row.due_date = title.due_date
         row.status = title.status
         row.account_id = title.account_id
         row.category_id = title.category_id
         row.cost_center_id = title.cost_center_id
-        row.favorecido = title.favorecido
+        row.favorecido = _norm_text(title.favorecido)
         row.favorecido_id = title.favorecido_id
-        row.notes = title.notes
+        row.notes = _norm_text(title.notes)
         row.paid_date = title.paid_date
         row.paid_amount = title.paid_amount
         return self._to_title(row)
@@ -672,12 +681,12 @@ class Repository:
     def add_favorecido(self, favorecido: Favorecido) -> Favorecido:
         row = FavorecidoRow(
             profile_id=self.profile_id,
-            name=favorecido.name,
+            name=_norm_text(favorecido.name),
             kind=favorecido.kind,
-            document=favorecido.document,
-            phone=favorecido.phone,
-            email=favorecido.email,
-            notes=favorecido.notes,
+            document=_norm_text(favorecido.document),
+            phone=_norm_text(favorecido.phone),
+            email=_norm_text(favorecido.email),
+            notes=_norm_text(favorecido.notes),
             active=favorecido.active,
         )
         self.session.add(row)
@@ -690,12 +699,12 @@ class Repository:
         row = self.session.get(FavorecidoRow, favorecido.id)
         if row is None:
             raise LookupError(f"favorecido {favorecido.id} não encontrado")
-        row.name = favorecido.name
+        row.name = _norm_text(favorecido.name)
         row.kind = favorecido.kind
-        row.document = favorecido.document
-        row.phone = favorecido.phone
-        row.email = favorecido.email
-        row.notes = favorecido.notes
+        row.document = _norm_text(favorecido.document)
+        row.phone = _norm_text(favorecido.phone)
+        row.email = _norm_text(favorecido.email)
+        row.notes = _norm_text(favorecido.notes)
         row.active = favorecido.active
         return self._to_favorecido(row)
 
@@ -734,7 +743,7 @@ class Repository:
     def add_cost_center(self, cost_center: CostCenter) -> CostCenter:
         row = CostCenterRow(
             profile_id=self.profile_id,
-            name=cost_center.name,
+            name=_norm_text(cost_center.name),
             active=cost_center.active,
         )
         self.session.add(row)
@@ -747,7 +756,7 @@ class Repository:
         row = self.session.get(CostCenterRow, cost_center.id)
         if row is None:
             raise LookupError(f"centro de custo {cost_center.id} não encontrado")
-        row.name = cost_center.name
+        row.name = _norm_text(cost_center.name)
         row.active = cost_center.active
         return self._to_cost_center(row)
 
@@ -766,12 +775,18 @@ class Repository:
         return self.session.scalar(select(func.count()).select_from(UserRow)) or 0
 
     def get_user(self, username: str) -> UserRow | None:
-        return self.session.scalar(
-            select(UserRow).where(UserRow.username == username)
+        normalized = _norm_text(username)
+        user = self.session.scalar(
+            select(UserRow).where(UserRow.username == normalized)
         )
+        if user is None and normalized != username:
+            user = self.session.scalar(
+                select(UserRow).where(UserRow.username == username)
+            )
+        return user
 
     def add_user(self, username: str, password_hash: str, salt: str) -> UserRow:
-        row = UserRow(username=username, password_hash=password_hash, salt=salt)
+        row = UserRow(username=_norm_text(username), password_hash=password_hash, salt=salt)
         self.session.add(row)
         self.session.flush()
         return row

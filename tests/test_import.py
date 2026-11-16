@@ -130,7 +130,7 @@ def test_preview_endpoint(client):
 
 
 def test_commit_endpoint_dedup(client):
-    account = client.post("/api/accounts", json={"name": "Banco", "type": "bank"}).get_json()
+    account = client.post("/api/accounts", json={"name": "BANCO", "type": "bank"}).get_json()
     txns = [
         {"date": "2026-03-15", "amount": -4250, "description": "SUPERMERCADO"},
         {"date": "2026-03-16", "amount": -1000, "description": "PADARIA"},

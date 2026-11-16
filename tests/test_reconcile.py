@@ -11,11 +11,11 @@ from money99.services.reconcile import reconciliation_summary
 
 def test_reconciliation_summary(client):
     account = client.post("/api/accounts", json={
-        "name": "Banco", "type": "bank", "initial_balance": 20000,
+        "name": "BANCO", "type": "bank", "initial_balance": 20000,
     }).get_json()
     other = client.post("/api/accounts", json={"name": "Outra", "type": "bank"}).get_json()
     food = next(c for c in client.get("/api/categories?kind=expense").get_json()
-                if c["name"] == "Alimentação")
+                if c["name"] == "ALIMENTAÇÃO")
 
     t1 = client.post("/api/transactions", json={
         "date": "2026-05-01", "account_id": account["id"], "amount": -5000,
@@ -55,8 +55,8 @@ def test_reconciliation_summary_service(tmp_path):
     init_db(engine)
     session = make_session(engine)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=10000))
-    food = {c.name: c for c in repo.list_categories(kind="expense")}["Alimentação"]
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=10000))
+    food = {c.name: c for c in repo.list_categories(kind="expense")}["ALIMENTAÇÃO"]
     repo.add_transaction(Transaction(
         date="2026-05-01", account_id=account.id, amount=-2000, category_id=food.id,
     ))
@@ -70,14 +70,14 @@ def test_reconciliation_summary_service(tmp_path):
 
 def test_suggest_matches_groups_same_amount(client):
     account = client.post("/api/accounts", json={
-        "name": "Banco", "type": "bank",
+        "name": "BANCO", "type": "bank",
     }).get_json()
     food = next(c for c in client.get("/api/categories?kind=expense").get_json()
-                if c["name"] == "Alimentação")
+                if c["name"] == "ALIMENTAÇÃO")
     # duas saídas idênticas em datas próximas (ex.: duplicata importada)
     client.post("/api/transactions", json={
         "date": "2026-05-01", "account_id": account["id"], "amount": -5000,
-        "category_id": food["id"], "description": "Mercado",
+        "category_id": food["id"], "description": "MERCADO",
     })
     client.post("/api/transactions", json={
         "date": "2026-05-02", "account_id": account["id"], "amount": -5000,

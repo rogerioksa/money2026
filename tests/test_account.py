@@ -8,7 +8,7 @@ from money99.domain.account import Account, AccountType
 
 
 def test_account_valid():
-    account = Account(name="Banco", type="bank", initial_balance=100000)
+    account = Account(name="BANCO", type="bank", initial_balance=100000)
     assert account.type is AccountType.BANK
 
 

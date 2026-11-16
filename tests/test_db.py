@@ -29,8 +29,8 @@ def test_init_seeds_categories(tmp_path):
     engine, session = setup_db(tmp_path)
     repo = Repository(session)
     names = {c.name for c in repo.list_categories()}
-    assert "Alimentação" in names
-    assert "Salário" in names
+    assert "ALIMENTAÇÃO" in names
+    assert "SALÁRIO" in names
     assert len(repo.list_categories()) == 12
     assert {c.kind for c in repo.list_categories()} == {"income", "expense"}
 
@@ -38,13 +38,15 @@ def test_init_seeds_categories(tmp_path):
 def test_account_crud_and_balance(tmp_path):
     engine, session = setup_db(tmp_path)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=100000))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=100000))
     category = repo.list_categories(kind="expense")[0]
 
     txn = repo.add_transaction(
         Transaction(date="2026-10-01", account_id=account.id, amount=-2500,
-                    description="Mercado", category_id=category.id)
+                    description="MERCADO", category_id=category.id)
     )
+    assert account.name == "BANCO"
+    assert txn.description == "MERCADO"
     assert repo.account_balance(account.id) == 100000 - 2500
 
     repo.delete_transaction(txn.id)
@@ -86,7 +88,7 @@ def test_future_transactions_not_in_balance(tmp_path):
 def test_delete_account_with_transactions_rejected(tmp_path):
     engine, session = setup_db(tmp_path)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank"))
+    account = repo.add_account(Account(name="BANCO", type="bank"))
     category = repo.list_categories(kind="expense")[0]
     repo.add_transaction(
         Transaction(date="2026-10-01", account_id=account.id, amount=-100, category_id=category.id)
@@ -101,10 +103,10 @@ def test_delete_account_with_transactions_rejected(tmp_path):
 def test_splits_and_category_filter(tmp_path):
     engine, session = setup_db(tmp_path)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     cats = {c.name: c for c in repo.list_categories(kind="expense")}
-    food = cats["Alimentação"]
-    transport = cats["Transporte"]
+    food = cats["ALIMENTAÇÃO"]
+    transport = cats["TRANSPORTE"]
 
     repo.add_transaction(
         Transaction(date="2026-10-05", account_id=account.id, amount=-4500,
@@ -116,13 +118,13 @@ def test_splits_and_category_filter(tmp_path):
     assert len(by_food) == 1
     by_transport = repo.list_transactions(category_id=transport.id)
     assert len(by_transport) == 1
-    assert len(repo.list_transactions(category_id=cats["Lazer"].id)) == 0
+    assert len(repo.list_transactions(category_id=cats["LAZER"].id)) == 0
 
 
 def test_date_filters(tmp_path):
     engine, session = setup_db(tmp_path)
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank"))
+    account = repo.add_account(Account(name="BANCO", type="bank"))
     cat = repo.list_categories(kind="expense")[0]
     for day in ("2026-09-30", "2026-10-01", "2026-11-01"):
         repo.add_transaction(
@@ -164,7 +166,7 @@ def test_legacy_migration_adds_missing_column(tmp_path):
         cols = {r[1] for r in conn.execute(text("PRAGMA table_info(transactions)"))}
         assert "reconciled" in cols
         row = conn.execute(text("SELECT description, amount FROM transactions")).fetchone()
-        assert row == ("antiga", -999)
+        assert row == ("ANTIGA", -999)
         indexes = {r[1] for r in conn.execute(text("PRAGMA index_list(transactions)"))}
         assert "ix_transactions_profile_description" in indexes
 
@@ -181,14 +183,14 @@ def test_legacy_migration_adds_credit_limit(tmp_path):
         ))
         conn.execute(text(
             "INSERT INTO accounts (name, type, initial_balance, active)"
-            " VALUES ('Banco', 'bank', 1000, 1)"
+            " VALUES ('BANCO', 'bank', 1000, 1)"
         ))
     init_db(engine)
     with engine.connect() as conn:
         cols = {r[1] for r in conn.execute(text("PRAGMA table_info(accounts)"))}
         assert "credit_limit" in cols
         row = conn.execute(text("SELECT name, initial_balance FROM accounts")).fetchone()
-        assert row == ("Banco", 1000)
+        assert row == ("BANCO", 1000)
 
 
 def test_account_credit_limit_persist_and_clear(tmp_path):
@@ -197,7 +199,7 @@ def test_account_credit_limit_persist_and_clear(tmp_path):
     card = repo.add_account(Account(name="Cartão", type="credit", credit_limit=500000))
     assert repo.get_account(card.id).credit_limit == 500000
     # Limite também é aceito em outros tipos de conta (ex.: limite de cheque especial)
-    bank = repo.add_account(Account(name="Banco", type="bank", credit_limit=999))
+    bank = repo.add_account(Account(name="BANCO", type="bank", credit_limit=999))
     assert repo.get_account(bank.id).credit_limit == 999
     # Sem limite informado permanece zerado
     cash = repo.add_account(Account(name="Dinheiro", type="cash"))
@@ -254,10 +256,10 @@ def test_migration_adds_mei_columns(tmp_path):
         assert "activity" in pcols
         assert "doc_issued" in tcols
         assert conn.execute(
-            text("SELECT activity FROM profiles WHERE name = 'Antigo'")
+            text("SELECT activity FROM profiles WHERE name = 'ANTIGO'")
         ).scalar() == "servicos"
         assert conn.execute(
-            text("SELECT doc_issued FROM transactions WHERE description = 'antiga'")
+            text("SELECT doc_issued FROM transactions WHERE description = 'ANTIGA'")
         ).scalar() == 0
 
 
@@ -287,7 +289,7 @@ def test_legacy_migration_adds_title_cost_center(tmp_path):
         row = conn.execute(
             text("SELECT description, amount, cost_center_id FROM titles")
         ).fetchone()
-        assert row == ("Energia", 25000, None)
+        assert row == ("ENERGIA", 25000, None)
 
 
 def test_prepare_database_backs_up_legacy_and_sets_version(tmp_path):
@@ -301,7 +303,7 @@ def test_prepare_database_backs_up_legacy_and_sets_version(tmp_path):
         ))
         conn.execute(text(
             "INSERT INTO accounts (name, type, initial_balance, active)"
-            " VALUES ('Banco', 'bank', 1000, 1)"
+            " VALUES ('BANCO', 'bank', 1000, 1)"
         ))
 
     backup = prepare_database(engine, backup_dir=tmp_path / "backups")
@@ -366,7 +368,7 @@ def test_create_app_backs_up_legacy_database(tmp_path, monkeypatch):
         ))
         conn.execute(text(
             "INSERT INTO accounts (name, type, initial_balance, active)"
-            " VALUES ('Banco', 'bank', 1000, 1)"
+            " VALUES ('BANCO', 'bank', 1000, 1)"
         ))
     engine.dispose()
 

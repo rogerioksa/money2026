@@ -123,13 +123,13 @@ def test_mei_api_requires_year(client):
 
 def test_mei_print_endpoint(client):
     business = client.post("/api/profiles", json={
-        "name": "MEI", "kind": "business", "legal_name": "Fulano ME",
+        "name": "MEI", "kind": "business", "legal_name": "FULANO ME",
         "cnpj": "00.000.000/0001-00",
     }).get_json()
     client.put("/api/auth/profile", json={"profile_id": business["id"]})
     res = client.get("/reports/mei?year=2026")
     assert res.status_code == 200
-    assert "Fulano ME" in res.get_data(as_text=True)
+    assert "FULANO ME" in res.get_data(as_text=True)
 
 
 def test_monthly_caderno_lines_and_profit(tmp_path):
@@ -154,7 +154,7 @@ def test_monthly_caderno_lines_and_profit(tmp_path):
     assert data["expenses_total"] == 40_000
     assert data["profit"] == 310_000
     assert len(data["sales"]) == 2
-    assert {sale["description"] for sale in data["sales"]} == {"Venda PF", "Venda PJ"}
+    assert {sale["description"] for sale in data["sales"]} == {"VENDA PF", "VENDA PJ"}
     assert data["daily"][2]["sales"] == 100_000  # dia 3
     assert data["daily"][11]["expenses"] == 40_000  # dia 12
     assert data["period_label"] == "01/05/2026 a 31/05/2026"
@@ -215,7 +215,7 @@ def test_transaction_doc_issued_roundtrip(client):
 
 def test_mei_print_monthly_caderno(client):
     business = client.post("/api/profiles", json={
-        "name": "MEI", "kind": "business", "legal_name": "Fulano ME",
+        "name": "MEI", "kind": "business", "legal_name": "FULANO ME",
         "cnpj": "00.000.000/0001-00", "activity": "servicos",
     }).get_json()
     client.put("/api/auth/profile", json={"profile_id": business["id"]})
@@ -223,5 +223,5 @@ def test_mei_print_monthly_caderno(client):
     html = res.get_data(as_text=True)
     assert res.status_code == 200
     assert "RELATÓRIO MENSAL DAS RECEITAS BRUTAS" in html
-    assert "Fulano ME" in html
+    assert "FULANO ME" in html
     assert "01/05/2026 a 31/05/2026" in html

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def create_account(client, name="Banco", type_="bank", initial=100000):
+def create_account(client, name="BANCO", type_="bank", initial=100000):
     res = client.post("/api/accounts", json={"name": name, "type": type_,
                                              "initial_balance": initial})
     assert res.status_code == 201
@@ -31,7 +31,7 @@ def test_accounts_crud(client):
                      json={"name": "Banco Inter", "type": "bank",
                            "initial_balance": 50000, "active": True})
     assert res.status_code == 200
-    assert res.get_json()["name"] == "Banco Inter"
+    assert res.get_json()["name"] == "BANCO INTER"
     assert res.get_json()["balance"] == 50000
 
     res = client.delete(f"/api/accounts/{account['id']}")
@@ -111,7 +111,7 @@ def test_transaction_crud_and_balance(client):
     cat = expense_category(client)
 
     res = client.post("/api/transactions", json={
-        "date": "2026-10-05", "description": "Mercado", "account_id": account["id"],
+        "date": "2026-10-05", "description": "MERCADO", "account_id": account["id"],
         "amount": -4532, "category_id": cat["id"],
     })
     assert res.status_code == 201
@@ -188,15 +188,15 @@ def test_splits_via_api(client):
         "date": "2026-10-07", "account_id": account["id"], "amount": -9000,
         "description": "Viagem",
         "splits": [
-            {"category_id": cats["Transporte"]["id"], "amount": -6000},
-            {"category_id": cats["Lazer"]["id"], "amount": -3000},
+            {"category_id": cats["TRANSPORTE"]["id"], "amount": -6000},
+            {"category_id": cats["LAZER"]["id"], "amount": -3000},
         ],
     })
     assert res.status_code == 201
 
-    res = client.get(f"/api/transactions?category_id={cats['Lazer']['id']}")
+    res = client.get(f"/api/transactions?category_id={cats['LAZER']['id']}")
     assert len(res.get_json()) == 1
-    res = client.get(f"/api/transactions?category_id={cats['Saúde']['id']}")
+    res = client.get(f"/api/transactions?category_id={cats['SAÚDE']['id']}")
     assert res.get_json() == []
 
 
@@ -254,7 +254,7 @@ def test_persist_across_app_instances(tmp_path):
     app1.config["TESTING"] = True
     c1 = app1.test_client()
     c1.post("/api/auth/setup", json={"username": "tester", "password": "senha123"})
-    res = c1.post("/api/accounts", json={"name": "Banco", "type": "bank"})
+    res = c1.post("/api/accounts", json={"name": "BANCO", "type": "bank"})
     assert res.status_code == 201
 
     app2 = create_app(str(db_file))
@@ -263,4 +263,4 @@ def test_persist_across_app_instances(tmp_path):
     c2.post("/api/auth/login", json={"username": "tester", "password": "senha123"})
     accounts = c2.get("/api/accounts").get_json()
     assert len(accounts) == 1
-    assert accounts[0]["name"] == "Banco"
+    assert accounts[0]["name"] == "BANCO"

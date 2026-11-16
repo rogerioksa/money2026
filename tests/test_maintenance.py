@@ -56,7 +56,7 @@ def test_restore_backup_reverts_changes(client):
 
     _login(client)
     accounts = client.get("/api/accounts").get_json()
-    assert [account["name"] for account in accounts] == ["Conta antiga"]
+    assert [account["name"] for account in accounts] == ["CONTA ANTIGA"]
     # Backup automático de segurança antes de substituir o banco.
     assert res.get_json()["backup"] is not None
 
@@ -75,7 +75,7 @@ def test_restore_upload(client):
 
     _login(client)
     accounts = client.get("/api/accounts").get_json()
-    assert [account["name"] for account in accounts] == ["Original"]
+    assert [account["name"] for account in accounts] == ["ORIGINAL"]
 
 
 def test_restore_requires_confirmation_and_valid_file(client):
@@ -95,7 +95,7 @@ def test_restore_requires_confirmation_and_valid_file(client):
 
     # Sessão e dados permanecem intactos após falhas de validação.
     accounts = client.get("/api/accounts").get_json()
-    assert [account["name"] for account in accounts] == ["Mantida"]
+    assert [account["name"] for account in accounts] == ["MANTIDA"]
 
 
 def test_download_rejects_path_traversal(client):

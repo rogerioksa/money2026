@@ -22,19 +22,19 @@ def setup_db(tmp_path):
 
 def seed(session):
     repo = Repository(session)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=100000))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=100000))
     cats = {c.name: c for c in repo.list_categories()}
     repo.add_transaction(Transaction(
         date="2026-03-10", account_id=account.id, amount=-4000,
-        category_id=cats["Alimentação"].id,
+        category_id=cats["ALIMENTAÇÃO"].id,
     ))
     repo.add_transaction(Transaction(
         date="2026-03-20", account_id=account.id, amount=-2000,
-        category_id=cats["Alimentação"].id,
+        category_id=cats["ALIMENTAÇÃO"].id,
     ))
     repo.add_transaction(Transaction(
         date="2026-04-05", account_id=account.id, amount=50000,
-        category_id=cats["Salário"].id,
+        category_id=cats["SALÁRIO"].id,
     ))
     session.commit()
     return repo, account, cats
@@ -43,15 +43,15 @@ def seed(session):
 def test_spending_by_category(tmp_path):
     repo, _, cats = seed(setup_db(tmp_path))
     result = spending_by_category(repo, "2026-01-01", "2026-12-31")
-    food = next(r for r in result if r["category"] == "Alimentação")
+    food = next(r for r in result if r["category"] == "ALIMENTAÇÃO")
     assert food["total"] == 6000
-    assert result[0]["category"] == "Alimentação"  # ordenado desc
+    assert result[0]["category"] == "ALIMENTAÇÃO"  # ordenado desc
 
 
 def test_spending_income_kind(tmp_path):
     repo, _, _ = seed(setup_db(tmp_path))
     result = spending_by_category(repo, "2026-01-01", "2026-12-31", kind="income")
-    assert result == [{"category_id": result[0]["category_id"], "category": "Salário",
+    assert result == [{"category_id": result[0]["category_id"], "category": "SALÁRIO",
                        "total": 50000}]
 
 
@@ -73,7 +73,7 @@ def test_net_worth_ignores_future_transactions(tmp_path):
     repo, account, cats = seed(setup_db(tmp_path))
     repo.add_transaction(Transaction(
         date="2200-01-01", account_id=account.id, amount=-9000,
-        category_id=cats["Alimentação"].id,
+        category_id=cats["ALIMENTAÇÃO"].id,
     ))
     assert net_worth(repo)["total"] == 144000
     assert net_worth(repo, as_of="2200-12-31")["total"] == 144000 - 9000
@@ -83,7 +83,7 @@ def test_dashboard_separates_future_entries(tmp_path):
     repo, account, cats = seed(setup_db(tmp_path))
     repo.add_transaction(Transaction(
         date="2200-01-01", account_id=account.id, amount=-700,
-        category_id=cats["Alimentação"].id,
+        category_id=cats["ALIMENTAÇÃO"].id,
     ))
     data = dashboard(repo)
     entry = next(a for a in data["accounts"] if a["account_id"] == account.id)
@@ -104,10 +104,10 @@ def test_cash_flow(tmp_path):
 
 def test_reports_api(client):
     account = client.post("/api/accounts", json={
-        "name": "Banco", "type": "bank", "initial_balance": 100000,
+        "name": "BANCO", "type": "bank", "initial_balance": 100000,
     }).get_json()
     food = next(c for c in client.get("/api/categories?kind=expense").get_json()
-                if c["name"] == "Alimentação")
+                if c["name"] == "ALIMENTAÇÃO")
     client.post("/api/transactions", json={
         "date": "2026-06-01", "account_id": account["id"], "amount": -3000,
         "category_id": food["id"],
@@ -133,8 +133,8 @@ def test_reports_api_validation(client):
 
 def test_dashboard_credit_and_totals(tmp_path):
     repo = Repository(setup_db(tmp_path))
-    repo.add_account(Account(name="Banco", type="bank", initial_balance=100000))
-    repo.add_account(Account(name="Cartão", type="credit",
+    repo.add_account(Account(name="BANCO", type="bank", initial_balance=100000))
+    repo.add_account(Account(name="CARTÃO", type="credit",
                              credit_limit=500000, initial_balance=-120000))
 
     data = dashboard(repo)
@@ -145,8 +145,8 @@ def test_dashboard_credit_and_totals(tmp_path):
     assert data["credit"]["available_total"] == 380000
     assert len(data["credit"]["accounts"]) == 1
     by_name = {a["name"]: a for a in data["accounts"]}
-    assert by_name["Banco"]["available"] == 100000
-    assert by_name["Cartão"]["available"] == 380000
+    assert by_name["BANCO"]["available"] == 100000
+    assert by_name["CARTÃO"]["available"] == 380000
 
 
 def test_dashboard_available_includes_limit_for_bank(tmp_path):
@@ -167,7 +167,7 @@ def test_dashboard_available_includes_limit_for_bank(tmp_path):
 
 
 def test_dashboard_api(client):
-    client.post("/api/accounts", json={"name": "Banco", "type": "bank",
+    client.post("/api/accounts", json={"name": "BANCO", "type": "bank",
                                        "initial_balance": 100000})
     client.post("/api/accounts", json={"name": "Cartão", "type": "credit",
                                        "credit_limit": 500000, "initial_balance": -120000})
@@ -179,7 +179,7 @@ def test_dashboard_api(client):
 
 
 def test_print_report_endpoint(client):
-    client.post("/api/accounts", json={"name": "Banco", "type": "bank",
+    client.post("/api/accounts", json={"name": "BANCO", "type": "bank",
                                        "initial_balance": 100000})
     res = client.get("/reports/print?year=2026")
     assert res.status_code == 200

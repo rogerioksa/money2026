@@ -29,11 +29,11 @@ def add_txn(repo, account_id, amount, category_id=None, day="2026-05-10"):
 
 def test_month_flow_and_savings_rate(tmp_path):
     repo = setup_repo(tmp_path)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     cats = {c.name: c for c in repo.list_categories()}
-    add_txn(repo, account.id, 100000, cats["Salário"].id, "2026-05-02")
-    add_txn(repo, account.id, -25000, cats["Alimentação"].id)
-    add_txn(repo, account.id, -15000, cats["Transporte"].id)
+    add_txn(repo, account.id, 100000, cats["SALÁRIO"].id, "2026-05-02")
+    add_txn(repo, account.id, -25000, cats["ALIMENTAÇÃO"].id)
+    add_txn(repo, account.id, -15000, cats["TRANSPORTE"].id)
 
     flow = dashboard_insights(repo, 2026, 5)["flow"]
     assert flow["income"] == 100000
@@ -45,7 +45,7 @@ def test_month_flow_and_savings_rate(tmp_path):
 
 def test_month_flow_ignores_transfers(tmp_path):
     repo = setup_repo(tmp_path)
-    bank = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    bank = repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     wallet = repo.add_account(Account(name="Carteira", type="cash", initial_balance=0))
     repo.add_transaction(Transaction(
         date="2026-05-05",
@@ -62,7 +62,7 @@ def test_month_flow_ignores_transfers(tmp_path):
 
 def test_title_indicators_and_overdue_suggestion(tmp_path):
     repo = setup_repo(tmp_path)
-    repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     today = date.today()
     repo.add_title(Title(
         type="payable",
@@ -92,7 +92,7 @@ def test_title_indicators_and_overdue_suggestion(tmp_path):
 
 def test_partial_title_uses_remaining_amount(tmp_path):
     repo = setup_repo(tmp_path)
-    repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     today = date.today()
     repo.add_title(Title(
         type="payable",
@@ -110,26 +110,26 @@ def test_partial_title_uses_remaining_amount(tmp_path):
 
 def test_budget_overrun_suggestion(tmp_path):
     repo = setup_repo(tmp_path)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     cats = {c.name: c for c in repo.list_categories()}
-    repo.set_annual_budget(2026, cats["Alimentação"].id, 12000)
-    add_txn(repo, account.id, -20000, cats["Alimentação"].id)
+    repo.set_annual_budget(2026, cats["ALIMENTAÇÃO"].id, 12000)
+    add_txn(repo, account.id, -20000, cats["ALIMENTAÇÃO"].id)
 
     data = dashboard_insights(repo, 2026, 5)
     suggestion = next(s for s in data["suggestions"] if "orçamento" in s["title"])
     assert suggestion["level"] in ("warning", "danger")
-    assert "Alimentação" in suggestion["detail"]
+    assert "ALIMENTAÇÃO" in suggestion["detail"]
 
 
 def test_category_increase_detected(tmp_path):
     repo = setup_repo(tmp_path)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     cats = {c.name: c for c in repo.list_categories()}
-    add_txn(repo, account.id, -5000, cats["Alimentação"].id, "2026-04-10")
-    add_txn(repo, account.id, -15000, cats["Alimentação"].id, "2026-05-10")
+    add_txn(repo, account.id, -5000, cats["ALIMENTAÇÃO"].id, "2026-04-10")
+    add_txn(repo, account.id, -15000, cats["ALIMENTAÇÃO"].id, "2026-05-10")
 
     data = dashboard_insights(repo, 2026, 5)
-    row = next(r for r in data["category_increases"] if r["category"] == "Alimentação")
+    row = next(r for r in data["category_increases"] if r["category"] == "ALIMENTAÇÃO")
     assert row["current"] == 15000
     assert row["previous"] == 5000
     assert row["change"] == 200
@@ -155,7 +155,7 @@ def test_credit_usage_suggestion(tmp_path):
 
 def test_uncategorized_transactions_suggestion(tmp_path):
     repo = setup_repo(tmp_path)
-    account = repo.add_account(Account(name="Banco", type="bank", initial_balance=0))
+    account = repo.add_account(Account(name="BANCO", type="bank", initial_balance=0))
     add_txn(repo, account.id, -7000)
 
     data = dashboard_insights(repo, 2026, 5)
@@ -166,7 +166,7 @@ def test_uncategorized_transactions_suggestion(tmp_path):
 
 def test_dashboard_api_includes_insights(client):
     client.post("/api/accounts", json={
-        "name": "Banco", "type": "bank", "initial_balance": 0,
+        "name": "BANCO", "type": "bank", "initial_balance": 0,
     })
 
     res = client.get("/api/reports/dashboard?year=2026&month=5")

@@ -374,7 +374,54 @@ function toast(message, isError = false, action = null) {
   el._timer = setTimeout(() => { el.style.display = "none"; }, action ? 5000 : 3000);
 }
 
+function shouldUppercaseField(el) {
+  if (!el || !(el instanceof HTMLElement)) return false;
+  if (el.matches('input[type="password"], input[type="hidden"], input[type="date"], input[type="file"], input[type="number"], input[type="checkbox"], input[type="radio"]')) return false;
+  if (el.matches("select")) return false;
+  if (el.dataset.keepCase === "true") return false;
+  const name = (el.getAttribute("name") || el.getAttribute("data-field") || el.id || "").toLowerCase();
+  if (name.includes("password") || name.includes("senha")) return false;
+  return el.matches('input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="tel"], textarea');
+}
+
+function shouldSpellcheckField(el) {
+  if (!el || !shouldUppercaseField(el)) return false;
+  const name = (el.getAttribute("name") || el.getAttribute("data-field") || el.id || "").toLowerCase();
+  if (["cnpj", "document", "phone", "email", "amount", "annual_limit", "credit_limit", "confirm"].some((k) => name.includes(k))) return false;
+  return true;
+}
+
+function applyTextFieldEnhancements(root = document) {
+  const fields = root.querySelectorAll('input:not([type]), input[type="text"], input[type="search"], input[type="email"], input[type="tel"], textarea');
+  fields.forEach((el) => {
+    if (shouldUppercaseField(el)) {
+      if (el.value) el.value = el.value.toUpperCase();
+      if (!el._uppercaseWired) {
+        el._uppercaseWired = true;
+        el.addEventListener("input", () => {
+          const start = el.selectionStart;
+          const end = el.selectionEnd;
+          const upper = el.value.toUpperCase();
+          if (upper !== el.value) {
+            el.value = upper;
+            if (typeof start === "number" && typeof end === "number") {
+              try { el.setSelectionRange(start, end); } catch (e) {}
+            }
+          }
+        });
+      }
+    }
+    if (shouldSpellcheckField(el)) {
+      el.setAttribute("spellcheck", "true");
+      el.setAttribute("lang", "pt-BR");
+    } else if (el.matches('input, textarea')) {
+      el.setAttribute("spellcheck", "false");
+    }
+  });
+}
+
 function focusFirstInput(root = document) {
+  applyTextFieldEnhancements(root);
   const field = root.querySelector(
     'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])',
   );
@@ -434,6 +481,21 @@ function applyScreenShortcut(ev) {
     }
   }
 }
+
+document.addEventListener("input", (ev) => {
+  const el = ev.target;
+  if (shouldUppercaseField(el)) {
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const upper = el.value.toUpperCase();
+    if (upper !== el.value) {
+      el.value = upper;
+      if (typeof start === "number" && typeof end === "number") {
+        try { el.setSelectionRange(start, end); } catch (e) {}
+      }
+    }
+  }
+}, true);
 
 document.addEventListener("keydown", (ev) => {
   const active = ev.target instanceof HTMLElement ? ev.target : null;

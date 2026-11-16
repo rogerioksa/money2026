@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-def create_account(client, name="Banco", initial=100000):
+def create_account(client, name="BANCO", initial=100000):
     res = client.post("/api/accounts", json={
         "name": name, "type": "bank", "initial_balance": initial,
     })
