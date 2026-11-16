@@ -21,7 +21,8 @@ app.py (create_app() + sessão por request + launcher pywebview)
 
 ## Ciclo de request
 
-1. `create_app()` cria o engine SQLite e roda `init_db` (create_all + `_migrate` + seed).
+1. `create_app()` cria o engine SQLite e chama `prepare_database()` (validação,
+   backup pré-migração e `init_db`: create_all + `_migrate` + seed).
 2. Cada request pega uma sessão via `g` (`app.extensions["get_repo"]`).
 3. `teardown_appcontext` faz `commit()` no sucesso e `rollback()` em erro, e fecha a sessão.
 

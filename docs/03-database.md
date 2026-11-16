@@ -1,7 +1,9 @@
 # 03 — Banco de dados
 
 SQLite por usuário (`data/money99.sqlite`), SQLAlchemy 2.0 (`db/models.py`).
-`init_db()` roda `Base.metadata.create_all` + `_migrate` + seed de categorias.
+Na inicialização, `prepare_database()` valida o arquivo, faz backup quando
+necessário, roda `init_db()` (`create_all` + `_migrate` + seed) e grava a versão
+do schema em `PRAGMA user_version`.
 
 ## Tabelas
 
@@ -46,14 +48,27 @@ Extrato.
 Transações com `date > hoje` não entram no saldo; o repository as expõe em
 `future` (`account_balances`) para a interface mostrar como lançamentos futuros.
 
-## Migração
+## Migração e preparação do banco
+
+Na inicialização do EXE, `create_app()` chama `db/session.prepare_database()`:
+
+1. Valida o arquivo com `PRAGMA integrity_check`; se estiver corrompido, aborta
+   com erro claro em vez de gravar em cima dos dados.
+2. Lê `PRAGMA user_version` e recusa abrir um banco criado por versão mais nova
+   do aplicativo (`version > SCHEMA_VERSION`).
+3. Se houver tabela/coluna faltante ou o banco vier de versão anterior, copia o
+   arquivo via `sqlite3.Connection.backup()` para
+   `data/backups/money99-AAAAMMDD-HHMMSS-pre-migration.sqlite`. Backups nunca são
+   apagados e aparecem na lista de Configurações → Banco de dados.
+4. Roda `init_db()` e grava `PRAGMA user_version = SCHEMA_VERSION`.
 
 `db/session._migrate()` compara as colunas esperadas com as existentes via
 `inspect()` e faz `ALTER TABLE ... ADD COLUMN` das que faltarem — nunca apaga
-dados; colunas numericas/booleanas novas tambem recebem backfill de `NULL`
+dados; colunas numéricas/booleanas novas também recebem backfill de `NULL`
 (`credit_limit`, `activity`, `doc_issued`). Coberto por
 `tests/test_db.py::test_legacy_migration_adds_missing_column`,
-`::test_legacy_migration_adds_credit_limit` e `::test_migration_adds_mei_columns`.
+`::test_legacy_migration_adds_credit_limit`,
+`::test_migration_adds_mei_columns` e `::test_prepare_database_backs_up_legacy_and_sets_version`.
 
 ## Seed
 

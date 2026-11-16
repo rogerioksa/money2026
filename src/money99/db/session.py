@@ -1,7 +1,10 @@
-"""Engine, sessão e migração leve de schema (colunas faltantes)."""
+"""Engine, sessão, migração leve e preparação segura do banco."""
 
 from __future__ import annotations
 
+import sqlite3
+from contextlib import closing
+from datetime import datetime
 from pathlib import Path
 
 from sqlalchemy import Engine, create_engine, inspect, text
@@ -23,6 +26,107 @@ DEFAULT_CATEGORIES = [
     ("Outras despesas", "expense"),
 ]
 
+# Versão lógica do schema. Incrementar quando houver migração que exija backup
+# mesmo sem colunas novas (ex.: backfill de dados).
+SCHEMA_VERSION = 1
+BACKUP_PREFIX = "money99-"
+
+_EXPECTED_COLUMNS: dict[str, list[tuple[str, str]]] = {
+    "profiles": [
+        ("name", "VARCHAR(120)"),
+        ("kind", "VARCHAR(20)"),
+        ("cnpj", "VARCHAR(20)"),
+        ("legal_name", "VARCHAR(200)"),
+        ("trade_name", "VARCHAR(200)"),
+        ("opened_on", "VARCHAR(10)"),
+        ("annual_limit", "INTEGER"),
+        ("activity", "VARCHAR(20)"),
+        ("active", "BOOLEAN"),
+    ],
+    "accounts": [
+        ("profile_id", "INTEGER"),
+        ("name", "VARCHAR(120)"),
+        ("type", "VARCHAR(20)"),
+        ("initial_balance", "INTEGER"),
+        ("active", "BOOLEAN"),
+        ("credit_limit", "INTEGER"),
+    ],
+    "categories": [
+        ("profile_id", "INTEGER"),
+        ("name", "VARCHAR(120)"),
+        ("kind", "VARCHAR(10)"),
+        ("parent_id", "INTEGER"),
+    ],
+    "transactions": [
+        ("profile_id", "INTEGER"),
+        ("date", "VARCHAR(10)"),
+        ("description", "VARCHAR(240)"),
+        ("account_id", "INTEGER"),
+        ("amount", "INTEGER"),
+        ("category_id", "INTEGER"),
+        ("transfer_account_id", "INTEGER"),
+        ("notes", "TEXT"),
+        ("reconciled", "BOOLEAN"),
+        ("doc_issued", "BOOLEAN"),
+        ("cost_center_id", "INTEGER"),
+    ],
+    "splits": [
+        ("transaction_id", "INTEGER"),
+        ("category_id", "INTEGER"),
+        ("amount", "INTEGER"),
+        ("cost_center_id", "INTEGER"),
+    ],
+    "budgets": [
+        ("profile_id", "INTEGER"),
+        ("year", "INTEGER"),
+        ("month", "INTEGER"),
+        ("category_id", "INTEGER"),
+        ("planned", "INTEGER"),
+    ],
+    "titles": [
+        ("profile_id", "INTEGER"),
+        ("type", "VARCHAR(12)"),
+        ("description", "VARCHAR(240)"),
+        ("amount", "INTEGER"),
+        ("due_date", "VARCHAR(10)"),
+        ("status", "VARCHAR(12)"),
+        ("account_id", "INTEGER"),
+        ("category_id", "INTEGER"),
+        ("cost_center_id", "INTEGER"),
+        ("favorecido", "VARCHAR(160)"),
+        ("favorecido_id", "INTEGER"),
+        ("notes", "TEXT"),
+        ("paid_date", "VARCHAR(10)"),
+        ("paid_amount", "INTEGER"),
+    ],
+    "favorecidos": [
+        ("profile_id", "INTEGER"),
+        ("name", "VARCHAR(160)"),
+        ("kind", "VARCHAR(12)"),
+        ("document", "VARCHAR(20)"),
+        ("phone", "VARCHAR(40)"),
+        ("email", "VARCHAR(160)"),
+        ("notes", "TEXT"),
+        ("active", "BOOLEAN"),
+    ],
+    "cost_centers": [
+        ("profile_id", "INTEGER"),
+        ("name", "VARCHAR(120)"),
+        ("active", "BOOLEAN"),
+    ],
+    "annual_budgets": [
+        ("profile_id", "INTEGER"),
+        ("year", "INTEGER"),
+        ("category_id", "INTEGER"),
+        ("annual_planned", "INTEGER"),
+    ],
+    "users": [
+        ("username", "VARCHAR(120)"),
+        ("password_hash", "VARCHAR(255)"),
+        ("salt", "VARCHAR(64)"),
+    ],
+}
+
 
 def connect(db_path: str | Path) -> Engine:
     return create_engine(f"sqlite:///{db_path}")
@@ -40,6 +144,99 @@ def init_db(engine: Engine, *, seed: bool = True) -> None:
     if seed:
         _seed_profiles(engine)
         _seed_categories(engine)
+    _set_schema_version(engine)
+
+
+def prepare_database(
+    engine: Engine,
+    *,
+    backup_dir: Path | None = None,
+    backup_prefix: str = BACKUP_PREFIX,
+) -> Path | None:
+    """Verifica integridade/versão, faz backup e aplica as migrações.
+
+    O backup (`...-pre-migration.sqlite`) só é criado quando o schema precisa
+    mudar ou quando o banco vem de uma versão anterior. Bancos novos não geram
+    backup. Retorna o caminho do backup criado ou `None`.
+    """
+    db_path = _database_path(engine)
+    backup: Path | None = None
+    if db_path is not None and db_path.exists() and db_path.stat().st_size > 0:
+        version = _read_user_version(db_path)
+        if version > SCHEMA_VERSION:
+            raise RuntimeError(
+                f"banco criado por uma versão mais nova do Money 2026 "
+                f"(schema {version} > {SCHEMA_VERSION}): {db_path}"
+            )
+        if version < SCHEMA_VERSION or _pending_changes(engine):
+            target_dir = backup_dir or (db_path.parent / "backups")
+            backup = _backup_database(db_path, target_dir, backup_prefix)
+    init_db(engine)
+    return backup
+
+
+def _database_path(engine: Engine) -> Path | None:
+    database = engine.url.database
+    if not database or database == ":memory:" or database.startswith("file:"):
+        return None
+    return Path(database)
+
+
+def _read_user_version(db_path: Path) -> int:
+    """Valida o arquivo e retorna `PRAGMA user_version` (0 em bancos antigos)."""
+    try:
+        with closing(sqlite3.connect(db_path)) as conn:
+            check = conn.execute("PRAGMA integrity_check").fetchone()
+            if not check or check[0] != "ok":
+                detail = check[0] if check else "sem resultado"
+                raise RuntimeError(
+                    f"banco SQLite corrompido: {db_path} (integrity_check: {detail})"
+                )
+            version = conn.execute("PRAGMA user_version").fetchone()
+    except sqlite3.DatabaseError as exc:
+        raise RuntimeError(f"banco SQLite inválido ou corrompido: {db_path}") from exc
+    return int(version[0]) if version else 0
+
+
+def _pending_changes(engine: Engine) -> list[str]:
+    """Lista tabelas/colunas ausentes em relação ao schema atual."""
+    inspector = inspect(engine)
+    pending: list[str] = []
+    for table in Base.metadata.sorted_tables:
+        if not inspector.has_table(table.name):
+            pending.append(table.name)
+            continue
+        existing = {col["name"] for col in inspector.get_columns(table.name)}
+        for column, _ in _EXPECTED_COLUMNS.get(table.name, []):
+            if column not in existing:
+                pending.append(f"{table.name}.{column}")
+    return pending
+
+
+def _backup_database(db_path: Path, backup_dir: Path, prefix: str) -> Path:
+    """Copia o banco via API de backup do SQLite antes de migrar."""
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    base = f"{prefix}{stamp}-pre-migration"
+    target = backup_dir / f"{base}.sqlite"
+    counter = 2
+    while target.exists():
+        target = backup_dir / f"{base}-{counter}.sqlite"
+        counter += 1
+    try:
+        with closing(sqlite3.connect(db_path)) as source, closing(
+            sqlite3.connect(target)
+        ) as destination:
+            source.backup(destination)
+    except Exception:
+        target.unlink(missing_ok=True)
+        raise
+    return target
+
+
+def _set_schema_version(engine: Engine) -> None:
+    with engine.begin() as conn:
+        conn.execute(text(f"PRAGMA user_version = {SCHEMA_VERSION}"))
 
 
 def _seed_profiles(engine: Engine) -> None:
@@ -87,104 +284,9 @@ def _seed_categories(engine: Engine) -> None:
 
 def _migrate(engine: Engine) -> None:
     """Adiciona colunas ausentes em bancos antigos. Nunca apaga dados."""
-    expected: dict[str, list[tuple[str, str]]] = {
-        "profiles": [
-            ("name", "VARCHAR(120)"),
-            ("kind", "VARCHAR(20)"),
-            ("cnpj", "VARCHAR(20)"),
-            ("legal_name", "VARCHAR(200)"),
-            ("trade_name", "VARCHAR(200)"),
-            ("opened_on", "VARCHAR(10)"),
-            ("annual_limit", "INTEGER"),
-            ("activity", "VARCHAR(20)"),
-            ("active", "BOOLEAN"),
-        ],
-        "accounts": [
-            ("profile_id", "INTEGER"),
-            ("name", "VARCHAR(120)"),
-            ("type", "VARCHAR(20)"),
-            ("initial_balance", "INTEGER"),
-            ("active", "BOOLEAN"),
-            ("credit_limit", "INTEGER"),
-        ],
-        "categories": [
-            ("profile_id", "INTEGER"),
-            ("name", "VARCHAR(120)"),
-            ("kind", "VARCHAR(10)"),
-            ("parent_id", "INTEGER"),
-        ],
-        "transactions": [
-            ("profile_id", "INTEGER"),
-            ("date", "VARCHAR(10)"),
-            ("description", "VARCHAR(240)"),
-            ("account_id", "INTEGER"),
-            ("amount", "INTEGER"),
-            ("category_id", "INTEGER"),
-            ("transfer_account_id", "INTEGER"),
-            ("notes", "TEXT"),
-            ("reconciled", "BOOLEAN"),
-            ("doc_issued", "BOOLEAN"),
-            ("cost_center_id", "INTEGER"),
-        ],
-        "splits": [
-            ("transaction_id", "INTEGER"),
-            ("category_id", "INTEGER"),
-            ("amount", "INTEGER"),
-            ("cost_center_id", "INTEGER"),
-        ],
-        "budgets": [
-            ("profile_id", "INTEGER"),
-            ("year", "INTEGER"),
-            ("month", "INTEGER"),
-            ("category_id", "INTEGER"),
-            ("planned", "INTEGER"),
-        ],
-        "titles": [
-            ("profile_id", "INTEGER"),
-            ("type", "VARCHAR(12)"),
-            ("description", "VARCHAR(240)"),
-            ("amount", "INTEGER"),
-            ("due_date", "VARCHAR(10)"),
-            ("status", "VARCHAR(12)"),
-            ("account_id", "INTEGER"),
-            ("category_id", "INTEGER"),
-            ("cost_center_id", "INTEGER"),
-            ("favorecido", "VARCHAR(160)"),
-            ("favorecido_id", "INTEGER"),
-            ("notes", "TEXT"),
-            ("paid_date", "VARCHAR(10)"),
-            ("paid_amount", "INTEGER"),
-        ],
-        "favorecidos": [
-            ("profile_id", "INTEGER"),
-            ("name", "VARCHAR(160)"),
-            ("kind", "VARCHAR(12)"),
-            ("document", "VARCHAR(20)"),
-            ("phone", "VARCHAR(40)"),
-            ("email", "VARCHAR(160)"),
-            ("notes", "TEXT"),
-            ("active", "BOOLEAN"),
-        ],
-        "cost_centers": [
-            ("profile_id", "INTEGER"),
-            ("name", "VARCHAR(120)"),
-            ("active", "BOOLEAN"),
-        ],
-        "annual_budgets": [
-            ("profile_id", "INTEGER"),
-            ("year", "INTEGER"),
-            ("category_id", "INTEGER"),
-            ("annual_planned", "INTEGER"),
-        ],
-        "users": [
-            ("username", "VARCHAR(120)"),
-            ("password_hash", "VARCHAR(255)"),
-            ("salt", "VARCHAR(64)"),
-        ],
-    }
     inspector = inspect(engine)
     with engine.begin() as conn:
-        for table, columns in expected.items():
+        for table, columns in _EXPECTED_COLUMNS.items():
             if not inspector.has_table(table):
                 continue
             existing = {col["name"] for col in inspector.get_columns(table)}

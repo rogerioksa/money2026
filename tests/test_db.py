@@ -2,10 +2,19 @@
 
 from __future__ import annotations
 
+import sqlite3
+
+import pytest
 from sqlalchemy import text
 
 from money99.db.repository import Repository
-from money99.db.session import connect, init_db, make_session
+from money99.db.session import (
+    SCHEMA_VERSION,
+    connect,
+    init_db,
+    make_session,
+    prepare_database,
+)
 from money99.domain.account import Account
 from money99.domain.transaction import Split, Transaction
 
@@ -279,3 +288,92 @@ def test_legacy_migration_adds_title_cost_center(tmp_path):
             text("SELECT description, amount, cost_center_id FROM titles")
         ).fetchone()
         assert row == ("Energia", 25000, None)
+
+
+def test_prepare_database_backs_up_legacy_and_sets_version(tmp_path):
+    """Banco legado é copiado antes da migração e recebe a versão do schema."""
+    db_file = tmp_path / "legacy_prepare.sqlite"
+    engine = connect(db_file)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE accounts (id INTEGER PRIMARY KEY, name VARCHAR(120),"
+            " type VARCHAR(20), initial_balance INTEGER, active BOOLEAN)"
+        ))
+        conn.execute(text(
+            "INSERT INTO accounts (name, type, initial_balance, active)"
+            " VALUES ('Banco', 'bank', 1000, 1)"
+        ))
+
+    backup = prepare_database(engine, backup_dir=tmp_path / "backups")
+
+    assert backup is not None
+    assert backup.name.startswith("money99-")
+    assert backup.name.endswith("-pre-migration.sqlite")
+    with sqlite3.connect(backup) as conn:
+        backup_cols = {r[1] for r in conn.execute("PRAGMA table_info(accounts)")}
+        assert "credit_limit" not in backup_cols
+        assert conn.execute("SELECT COUNT(*) FROM accounts").fetchone()[0] == 1
+
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(accounts)"))}
+        assert "credit_limit" in cols
+        assert conn.execute(text("PRAGMA user_version")).scalar() == SCHEMA_VERSION
+
+
+def test_prepare_database_skips_backup_for_current_schema(tmp_path):
+    db_file = tmp_path / "current.sqlite"
+    engine = connect(db_file)
+    init_db(engine)
+
+    backup = prepare_database(engine, backup_dir=tmp_path / "backups")
+
+    assert backup is None
+    assert not (tmp_path / "backups").exists()
+
+
+def test_prepare_database_rejects_corrupt_file(tmp_path):
+    db_file = tmp_path / "corrupt.sqlite"
+    db_file.write_bytes(b"not a sqlite database")
+    engine = connect(db_file)
+
+    with pytest.raises(RuntimeError, match="corrompido|inválido"):
+        prepare_database(engine)
+
+    assert db_file.read_bytes() == b"not a sqlite database"
+
+
+def test_prepare_database_rejects_newer_schema(tmp_path):
+    db_file = tmp_path / "future.sqlite"
+    engine = connect(db_file)
+    init_db(engine)
+    with sqlite3.connect(db_file) as conn:
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION + 1}")
+
+    with pytest.raises(RuntimeError, match="mais nova"):
+        prepare_database(engine)
+
+
+def test_create_app_backs_up_legacy_database(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    db_file = data_dir / "money99.sqlite"
+    engine = connect(db_file)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "CREATE TABLE accounts (id INTEGER PRIMARY KEY, name VARCHAR(120),"
+            " type VARCHAR(20), initial_balance INTEGER, active BOOLEAN)"
+        ))
+        conn.execute(text(
+            "INSERT INTO accounts (name, type, initial_balance, active)"
+            " VALUES ('Banco', 'bank', 1000, 1)"
+        ))
+    engine.dispose()
+
+    from money99.app import create_app
+
+    app = create_app(str(db_file))
+
+    backups = list((data_dir / "backups").glob("money99-*-pre-migration.sqlite"))
+    assert len(backups) == 1
+    assert app.config["MIGRATION_BACKUP"] == backups[0]

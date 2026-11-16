@@ -47,7 +47,8 @@ webview_pack.spec                 # build do Money2026.exe
 
 - Banco: `data/money99.sqlite` (ao lado do cwd/exe; fallback `%APPDATA%/Money99`).
 - Exportações: `data/exports/`.
-- Backups: `data/backups/` (criados em Configurações → Banco de dados).
+- Backups: `data/backups/` (manuais em Configurações → Banco de dados e
+  automáticos `pre-migration`, `pre-restore` e `pre-reset`).
 
 ## Operação e garantia de qualidade
 

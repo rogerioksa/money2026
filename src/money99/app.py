@@ -10,7 +10,7 @@ import threading
 from flask import Flask, g, jsonify, redirect, request, session
 
 from money99 import __version__
-from money99.data_path import _resource_base, db_path, secret_key
+from money99.data_path import _resource_base, backups_dir, db_path, secret_key
 
 
 def _resource_folder(name: str) -> str:
@@ -31,10 +31,10 @@ def create_app(database_path: str | None = None) -> Flask:
     app.config["SECRET_KEY"] = secret_key()
 
     from money99.db.repository import Repository
-    from money99.db.session import connect, init_db, make_session
+    from money99.db.session import connect, make_session, prepare_database
 
     engine = connect(app.config["DB_PATH"])
-    init_db(engine)
+    app.config["MIGRATION_BACKUP"] = prepare_database(engine, backup_dir=backups_dir())
     app.config["ENGINE"] = engine
 
     def get_repo(profile_id: int | None = "__current__"):
